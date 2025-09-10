@@ -98,6 +98,7 @@ class Oracle(Dialect):
             "START": TokenType.BEGIN,
             "TOP": TokenType.TOP,
             "VARCHAR2": TokenType.VARCHAR,
+            "ENABLE": TokenType.ENABLE,
         }
 
     class Parser(parser.Parser):
@@ -263,6 +264,31 @@ class Oracle(Dialect):
         def _parse_connect_with_prior(self):
             return self._parse_assignment()
 
+        def _parse_column_constraint(self) -> t.Optional[exp.Expression]:
+            this = self._match(TokenType.CONSTRAINT) and self._parse_id_var()
+
+            procedure_option_follows = (
+                self._match(TokenType.WITH, advance=False)
+                and self._next
+                and self._next.text.upper() in self.PROCEDURE_OPTIONS
+            )
+
+            if not procedure_option_follows and self._match_texts(self.CONSTRAINT_PARSERS):
+                constraint = self.CONSTRAINT_PARSERS[self._prev.text.upper()](self)
+                
+                # 检查是否有 ENABLE 关键字
+                if self._match(TokenType.ENABLE):
+                    if hasattr(constraint, 'set'):
+                        constraint.set('enabled', True)
+                
+                return self.expression(
+                    exp.ColumnConstraint,
+                    this=this,
+                    kind=constraint,
+                )
+
+            return this
+
     class Generator(generator.Generator):
         LOCKING_READS_SUPPORTED = True
         JOIN_HINTS = False
@@ -388,3 +414,14 @@ class Oracle(Dialect):
 
         def isascii_sql(self, expression: exp.IsAscii) -> str:
             return f"NVL(REGEXP_LIKE({self.sql(expression.this)}, '^[' || CHR(1) || '-' || CHR(127) || ']*$'), TRUE)"
+
+
+        def columnconstraint_sql(self, expression: exp.ColumnConstraint) -> str:
+            this = self.sql(expression, "this")
+            kind_sql = self.sql(expression, "kind").strip()
+            
+            # 检查是否有 ENABLE 属性
+            enabled = getattr(expression.kind, 'args', {}).get('enabled', False)
+            enable_sql = " ENABLE" if enabled else ""
+            
+            return f"CONSTRAINT {this} {kind_sql}{enable_sql}" if this else f"{kind_sql}{enable_sql}"

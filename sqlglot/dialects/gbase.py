@@ -32,14 +32,14 @@ from sqlglot.helper import seq_get
 from sqlglot.tokens import TokenType
 
 
-def _show_parser(*args: t.Any, **kwargs: t.Any) -> t.Callable[[MySQL.Parser], exp.Show]:
-    def _parse(self: MySQL.Parser) -> exp.Show:
-        return self._parse_show_mysql(*args, **kwargs)
+def _show_parser(*args: t.Any, **kwargs: t.Any) -> t.Callable[[GBase.Parser], exp.Show]:
+    def _parse(self: GBase.Parser) -> exp.Show:
+        return self._parse_show_gbase(*args, **kwargs)
 
     return _parse
 
 
-def _date_trunc_sql(self: MySQL.Generator, expression: exp.DateTrunc) -> str:
+def _date_trunc_sql(self: GBase.Generator, expression: exp.DateTrunc) -> str:
     expr = self.sql(expression, "this")
     unit = expression.text("unit").upper()
 
@@ -82,23 +82,23 @@ def _has_time_specifier(date_format: str) -> bool:
 
 
 def _str_to_date(args: t.List) -> exp.StrToDate | exp.StrToTime:
-    mysql_date_format = seq_get(args, 1)
-    date_format = MySQL.format_time(mysql_date_format)
+    gbase_date_format = seq_get(args, 1)
+    date_format = GBase.format_time(gbase_date_format)
     this = seq_get(args, 0)
 
-    if mysql_date_format and _has_time_specifier(mysql_date_format.name):
+    if gbase_date_format and _has_time_specifier(gbase_date_format.name):
         return exp.StrToTime(this=this, format=date_format)
 
     return exp.StrToDate(this=this, format=date_format)
 
 
 def _str_to_date_sql(
-    self: MySQL.Generator, expression: exp.StrToDate | exp.StrToTime | exp.TsOrDsToDate
+    self: GBase.Generator, expression: exp.StrToDate | exp.StrToTime | exp.TsOrDsToDate
 ) -> str:
     return self.func("STR_TO_DATE", expression.this, self.format_time(expression))
 
 
-def _unix_to_time_sql(self: MySQL.Generator, expression: exp.UnixToTime) -> str:
+def _unix_to_time_sql(self: GBase.Generator, expression: exp.UnixToTime) -> str:
     scale = expression.args.get("scale")
     timestamp = expression.this
 
@@ -125,16 +125,16 @@ def date_add_sql(
     return func
 
 
-def _ts_or_ds_to_date_sql(self: MySQL.Generator, expression: exp.TsOrDsToDate) -> str:
+def _ts_or_ds_to_date_sql(self: GBase.Generator, expression: exp.TsOrDsToDate) -> str:
     time_format = expression.args.get("format")
     return _str_to_date_sql(self, expression) if time_format else self.func("DATE", expression.this)
 
 
 def _remove_ts_or_ds_to_date(
-    to_sql: t.Optional[t.Callable[[MySQL.Generator, exp.Expression], str]] = None,
+    to_sql: t.Optional[t.Callable[[GBase.Generator, exp.Expression], str]] = None,
     args: t.Tuple[str, ...] = ("this",),
-) -> t.Callable[[MySQL.Generator, exp.Func], str]:
-    def func(self: MySQL.Generator, expression: exp.Func) -> str:
+) -> t.Callable[[GBase.Generator, exp.Func], str]:
+    def func(self: GBase.Generator, expression: exp.Func) -> str:
         for arg_key in args:
             arg = expression.args.get(arg_key)
             if isinstance(arg, exp.TsOrDsToDate) and not arg.args.get("format"):
@@ -145,7 +145,7 @@ def _remove_ts_or_ds_to_date(
     return func
 
 
-class MySQL(Dialect):
+class GBase(Dialect):
     PROMOTE_TO_INFERRED_DATETIME_TYPE = True
 
     # https://dev.mysql.com/doc/refman/8.0/en/identifiers.html
@@ -308,14 +308,14 @@ class MySQL(Dialect):
             "CURDATE": exp.CurrentDate.from_arg_list,
             "DATE": lambda args: exp.TsOrDsToDate(this=seq_get(args, 0)),
             "DATE_ADD": build_date_delta_with_interval(exp.DateAdd),
-            "DATE_FORMAT": build_formatted_time(exp.TimeToStr, "mysql"),
+            "DATE_FORMAT": build_formatted_time(exp.TimeToStr, "gbase"),
             "DATE_SUB": build_date_delta_with_interval(exp.DateSub),
             "DAY": lambda args: exp.Day(this=exp.TsOrDsToDate(this=seq_get(args, 0))),
             "DAYOFMONTH": lambda args: exp.DayOfMonth(this=exp.TsOrDsToDate(this=seq_get(args, 0))),
             "DAYOFWEEK": lambda args: exp.DayOfWeek(this=exp.TsOrDsToDate(this=seq_get(args, 0))),
             "DAYOFYEAR": lambda args: exp.DayOfYear(this=exp.TsOrDsToDate(this=seq_get(args, 0))),
             "FORMAT": exp.NumberToStr.from_arg_list,
-            "FROM_UNIXTIME": build_formatted_time(exp.UnixToTime, "mysql"),
+            "FROM_UNIXTIME": build_formatted_time(exp.UnixToTime, "gbase"),
             "ISNULL": isnull_to_is_null,
             "LENGTH": lambda args: exp.Length(this=seq_get(args, 0), binary=True),
             "MAKETIME": exp.TimeFromParts.from_arg_list,
@@ -571,7 +571,7 @@ class MySQL(Dialect):
                 options=options,
             )
 
-        def _parse_show_mysql(
+        def _parse_show_gbase(
             self,
             this: str,
             target: bool | str = False,
@@ -1184,11 +1184,11 @@ class MySQL(Dialect):
             return f"GENERATED ALWAYS AS ({self.sql(expression.this.unnest())}) {persisted}"
 
         def array_sql(self, expression: exp.Array) -> str:
-            self.unsupported("Arrays are not supported by MySQL")
+            self.unsupported("Arrays are not supported by GBase")
             return self.function_fallback_sql(expression)
 
         def arraycontainsall_sql(self, expression: exp.ArrayContainsAll) -> str:
-            self.unsupported("Array operations are not supported by MySQL")
+            self.unsupported("Array operations are not supported by GBase")
             return self.function_fallback_sql(expression)
 
         def dpipe_sql(self, expression: exp.DPipe) -> str:
@@ -1317,7 +1317,7 @@ class MySQL(Dialect):
             return self.func("CONVERT_TZ", dt, from_tz, to_tz)
 
         def attimezone_sql(self, expression: exp.AtTimeZone) -> str:
-            self.unsupported("AT TIME ZONE is not supported by MySQL")
+            self.unsupported("AT TIME ZONE is not supported by GBase")
             return self.sql(expression.this)
 
         def isascii_sql(self, expression: exp.IsAscii) -> str:

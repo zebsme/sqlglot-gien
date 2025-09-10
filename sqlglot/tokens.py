@@ -230,6 +230,11 @@ class TokenType(AutoName):
     DYNAMIC = auto()
     VOID = auto()
 
+    # DB2特有数据类型
+    LONG_VARCHAR = auto()
+    DECFLOAT = auto()
+    LONG_VARGRAPHIC = auto()
+
     # keywords
     ALIAS = auto()
     ALTER = auto()
@@ -422,6 +427,10 @@ class TokenType(AutoName):
     WINDOW = auto()
     WITH = auto()
     UNIQUE = auto()
+    ENABLE = auto()
+    DISABLE = auto()
+    NOVALIDATE = auto()
+    DISTRIBUTED = auto()
     VERSION_SNAPSHOT = auto()
     TIMESTAMP_SNAPSHOT = auto()
     OPTION = auto()
@@ -932,6 +941,9 @@ class Tokenizer(metaclass=_Tokenizer):
         "TINYTEXT": TokenType.TINYTEXT,
         "CLOB": TokenType.TEXT,
         "LONGVARCHAR": TokenType.TEXT,
+        "LONG VARCHAR": TokenType.LONG_VARCHAR,
+        "DECFLOAT": TokenType.DECFLOAT,
+        "LONG VARGRAPHIC": TokenType.LONG_VARGRAPHIC,
         "BINARY": TokenType.BINARY,
         "BLOB": TokenType.VARBINARY,
         "LONGBLOB": TokenType.LONGBLOB,
@@ -1079,10 +1091,25 @@ class Tokenizer(metaclass=_Tokenizer):
         return self.tokens
 
     def _scan(self, until: t.Optional[t.Callable] = None) -> None:
+        """
+        主扫描循环：从 `self.sql` 中按字符推进，构造 `self.tokens`。
+
+        参数:
+            until: 可选的回调。当该回调返回 True 时提前结束扫描（用于扫描到特定边界，如遇到分号等）。
+
+        流程概览:
+            - 批量跳过空格或制表符（不包含换行），减少多次调用 _advance 的开销。
+            - 设置当前 token 的起始位置 `_start`，并调用 `_advance` 前进，刷新当前字符与行列位置。
+            - 根据当前字符类型分派到对应的扫描函数：数字、带引号标识符、或关键字/运算符/变量。
+            - 若提供 `until` 并满足条件，则提前终止主循环。
+            - 结束时若仍有挂起的注释，将其附加到最后一个 token 上。
+        """
         while self.size and not self._end:
+            # 记录当前位置，后续用于"批量跳过空白"
             current = self._current
 
             # Skip spaces here rather than iteratively calling advance() for performance reasons
+            # 为提升性能，在这里一次性跳过连续的空格或制表符（不处理换行符）
             while current < self.size:
                 char = self.sql[current]
 
@@ -1091,61 +1118,102 @@ class Tokenizer(metaclass=_Tokenizer):
                 else:
                     break
 
+            # 若确实跳过了空白，则偏移量为跳过的字符数；否则至少前进 1 个字符
             offset = current - self._current if current > self._current else 1
 
+            # 设置当前 token 的起始位置到第一个非空白字符
             self._start = current
+            # 前进 offset 个字符，同时更新 _char/_peek/_line/_col/_end 等内部指针与状态
             self._advance(offset)
 
+            # 非空白字符：根据类型分派到相应扫描器
             if not self._char.isspace():
                 if self._char.isdigit():
+                    # 处理数字字面量（含小数点、科学计数、类型后缀等）
                     self._scan_number()
                 elif self._char in self._IDENTIFIERS:
+                    # 处理带定界符的标识符（如 "..."、`...` 等）
                     self._scan_identifier(self._IDENTIFIERS[self._char])
                 else:
+                    # 处理关键字、多字符/单字符运算符、注释、或未引号标识符/变量
                     self._scan_keywords()
 
+            # 若设置了提前终止条件且已满足，则跳出主循环
             if until and until():
                 break
 
+        # 扫描完成后，如果还有挂起的注释，把它们附加到最后一个 token 上
         if self.tokens and self._comments:
             self.tokens[-1].comments.extend(self._comments)
 
     def _chars(self, size: int) -> str:
+        """
+        获取当前位置开始的指定长度的字符序列
+        
+        用于检查多字符token（如操作符 '>=', '<=', '!=' 等）或字符串分隔符
+        
+        Args:
+            size: 要获取的字符数量
+            
+        Returns:
+            str: 指定长度的字符序列，如果超出字符串边界则返回空字符串
+        """
         if size == 1:
+            # 单字符情况，直接返回当前字符
             return self._char
 
-        start = self._current - 1
+        # 计算字符序列的起始和结束位置
+        start = self._current - 1  # 当前位置（_current是下一个要读取的位置）
         end = start + size
 
+        # 返回指定范围的字符，如果超出边界则返回空字符串
         return self.sql[start:end] if end <= self.size else ""
 
     def _advance(self, i: int = 1, alnum: bool = False) -> None:
+        """
+        向前移动扫描位置
+        
+        这是词法分析器的核心移动方法，负责更新当前位置、行号、列号等状态信息。
+        支持单步移动和连续字母数字字符的快速跳过。
+        
+        Args:
+            i: 要前进的字符数，默认为1
+            alnum: 是否连续跳过字母数字字符，用于性能优化
+        """
+        # 处理换行符的行号更新
         if self.WHITE_SPACE.get(self._char) is TokenType.BREAK:
-            # Ensures we don't count an extra line if we get a \r\n line break sequence
+            # 确保 \r\n 序列不会导致行号重复计算
+            # 这是Windows风格换行符的特殊处理
             if not (self._char == "\r" and self._peek == "\n"):
-                self._col = i
-                self._line += 1
+                self._col = i  # 重置列号为前进的字符数
+                self._line += 1  # 增加行号
         else:
+            # 非换行符，正常增加列号
             self._col += i
 
+        # 更新当前位置和结束状态
         self._current += i
         self._end = self._current >= self.size
+        # 更新当前字符和下一个字符
         self._char = self.sql[self._current - 1]
         self._peek = "" if self._end else self.sql[self._current]
 
+        # 性能优化：连续跳过字母数字字符
         if alnum and self._char.isalnum():
-            # Here we use local variables instead of attributes for better performance
+            # 使用局部变量而不是实例属性，避免重复的属性访问开销
             _col = self._col
             _current = self._current
             _end = self._end
             _peek = self._peek
 
+            # 连续跳过字母数字字符
             while _peek.isalnum():
                 _col += 1
                 _current += 1
                 _end = _current >= self.size
                 _peek = "" if _end else self.sql[_current]
 
+            # 将局部变量的值更新回实例属性
             self._col = _col
             self._current = _current
             self._end = _end
@@ -1154,44 +1222,82 @@ class Tokenizer(metaclass=_Tokenizer):
 
     @property
     def _text(self) -> str:
+        """
+        获取当前token的文本内容
+        
+        返回从token开始位置到当前位置的所有字符，用于构建token的文本值
+        
+        Returns:
+            str: 当前token的文本内容
+        """
         return self.sql[self._start : self._current]
 
     def _add(self, token_type: TokenType, text: t.Optional[str] = None) -> None:
+        """
+        添加新的token到token列表
+        
+        这是词法分析器的核心方法，负责创建和添加token，处理注释关联，
+        以及处理特殊命令token的后续字符串解析。
+        
+        Args:
+            token_type: token的类型
+            text: token的文本内容，如果为None则使用当前位置的文本
+        """
+        # 记录前一个token的行号，用于注释关联判断
         self._prev_token_line = self._line
 
+        # 特殊处理：分号前的注释附加到前一个token
+        # 这确保了语句结束时的注释能正确关联
         if self._comments and token_type == TokenType.SEMICOLON and self.tokens:
             self.tokens[-1].comments.extend(self._comments)
             self._comments = []
 
+        # 创建并添加新的token
         self.tokens.append(
             Token(
                 token_type,
-                text=self._text if text is None else text,
-                line=self._line,
-                col=self._col,
-                start=self._start,
-                end=self._current - 1,
-                comments=self._comments,
+                text=self._text if text is None else text,  # 使用指定文本或当前位置文本
+                line=self._line,      # 行号
+                col=self._col,        # 列号
+                start=self._start,    # 开始位置
+                end=self._current - 1,  # 结束位置
+                comments=self._comments,  # 关联的注释
             )
         )
+        # 清空当前注释列表，为下一个token准备
         self._comments = []
 
-        # If we have either a semicolon or a begin token before the command's token, we'll parse
-        # whatever follows the command's token as a string
+        # 特殊处理：命令token后的字符串解析
+        # 某些SQL命令（如EXECUTE, PREPARE等）后面可能跟着字符串参数
         if (
-            token_type in self.COMMANDS
-            and self._peek != ";"
-            and (len(self.tokens) == 1 or self.tokens[-2].token_type in self.COMMAND_PREFIX_TOKENS)
+            token_type in self.COMMANDS  # 当前token是命令类型
+            and self._peek != ";"        # 下一个字符不是分号
+            and (len(self.tokens) == 1 or self.tokens[-2].token_type in self.COMMAND_PREFIX_TOKENS)  # 是第一个token或前一个token是命令前缀
         ):
+            # 记录开始位置和当前token数量
             start = self._current
             tokens = len(self.tokens)
+            # 扫描直到遇到分号，但不添加token
             self._scan(lambda: self._peek == ";")
+            # 恢复token列表到命令token之后的状态
             self.tokens = self.tokens[:tokens]
+            # 提取命令后的字符串内容
             text = self.sql[start : self._current].strip()
             if text:
+                # 将命令后的内容作为字符串token添加
                 self._add(TokenType.STRING, text)
 
     def _scan_keywords(self) -> None:
+        """
+        关键字/操作符/注释/字符串/变量 的分派扫描器。
+
+        工作原理:
+            - 利用 `_KEYWORD_TRIE` 在当前位置基于大小写不敏感匹配尝试最长可用的关键字/多字符操作符/注释起始符等。
+            - 将连续空白折叠为单个空格，以便正确匹配包含空格的多词关键字（例如 "GROUP BY"、"ORDER BY"）。
+            - 若命中候选 `word`，优先尝试将其解释为字符串起始或注释起始；若成立则进入对应扫描分支。
+            - 否则在边界条件满足时（后继为空白、下一个是单字符 token、或已到末尾）将 `word` 视为关键字并产出 token。
+            - 若没有匹配到 `word`，尝试识别单字符 token；都没有则回退到 `_scan_var` 扫描普通标识符/变量。
+        """
         size = 0
         word = None
         chars = self._text
@@ -1201,15 +1307,20 @@ class Tokenizer(metaclass=_Tokenizer):
         trie = self._KEYWORD_TRIE
         single_token = char in self.SINGLE_TOKENS
 
+        # 逐字符扩展 `chars`（把连续空白折叠为单个空格），并在 Trie 中推进匹配状态
         while chars:
             if skip:
+                # 连续空白的第二个及之后的空白不参与 Trie 匹配，但保留"仍可能是前缀"的状态
                 result = TrieResult.PREFIX
             else:
+                # 大小写不敏感匹配，统一为大写推进 Trie
                 result, trie = in_trie(trie, char.upper())
 
             if result == TrieResult.FAILED:
+                # 无法继续匹配
                 break
             if result == TrieResult.EXISTS:
+                # 当前 `chars` 是一个有效的词条（可能还有更长的），记录为候选
                 word = chars
 
             end = self._current + size
@@ -1217,62 +1328,87 @@ class Tokenizer(metaclass=_Tokenizer):
 
             if end < self.size:
                 char = self.sql[end]
+                # 如果后继字符是单字符 token（如 , ( ) 等），需记录以便后续判断边界
                 single_token = single_token or char in self.SINGLE_TOKENS
                 is_space = char.isspace()
 
                 if not is_space or not prev_space:
+                    # 首次遇到空白，折叠为空格加入；否则直接加入字符
                     if is_space:
                         char = " "
                     chars += char
                     prev_space = is_space
                     skip = False
                 else:
+                    # 避免将第二个及之后的连续空白并入匹配序列
                     skip = True
             else:
+                # 已到输入末尾
                 char = ""
                 break
 
         if word:
+            # 优先判断是否为字符串/格式化字符串起始
             if self._scan_string(word):
                 return
+            # 其次判断是否为注释起始
             if self._scan_comment(word):
                 return
+            # 到达边界（后继是空白、单字符 token、或输入末尾），确认为关键字并产出 token
             if prev_space or single_token or not char:
                 self._advance(size - 1)
                 word = word.upper()
                 self._add(self.KEYWORDS[word], text=word)
                 return
 
+        # 若当前字符本身就是单字符 token，直接产出
         if self._char in self.SINGLE_TOKENS:
             self._add(self.SINGLE_TOKENS[self._char], text=self._char)
             return
 
+        # 否则将其视为普通变量/未引号标识符继续扫描
         self._scan_var()
 
     def _scan_comment(self, comment_start: str) -> bool:
+        """
+        扫描并处理SQL注释
+        
+        Args:
+            comment_start: 注释开始标记（如 '--', '/*', '#' 等）
+            
+        Returns:
+            bool: 如果成功识别并处理了注释则返回True，否则返回False
+        """
+        # 检查注释开始标记是否在当前方言支持的注释类型中
         if comment_start not in self._COMMENTS:
             return False
 
+        # 记录注释开始的行号和长度，用于后续判断注释位置
         comment_start_line = self._line
         comment_start_size = len(comment_start)
-        comment_end = self._COMMENTS[comment_start]
+        comment_end = self._COMMENTS[comment_start]  # 获取对应的注释结束标记
 
         if comment_end:
-            # Skip the comment's start delimiter
+            # 处理块注释（如 /* ... */）
+            # 跳过注释开始标记
             self._advance(comment_start_size)
 
+            # 使用计数器处理嵌套注释，某些方言支持嵌套注释
             comment_count = 1
             comment_end_size = len(comment_end)
 
+            # 扫描直到找到匹配的注释结束标记
             while not self._end:
+                # 检查是否遇到注释结束标记
                 if self._chars(comment_end_size) == comment_end:
                     comment_count -= 1
-                    if not comment_count:
+                    if not comment_count:  # 当计数器归零时，找到最外层的注释结束
                         break
 
                 self._advance(alnum=True)
 
-                # Nested comments are allowed by some dialects, e.g. databricks, duckdb, postgres
+                # 处理嵌套注释：某些方言（如databricks, duckdb, postgres）支持嵌套注释
+                # 当遇到新的注释开始标记时，增加嵌套计数
                 if (
                     self.NESTED_COMMENTS
                     and not self._end
@@ -1281,13 +1417,18 @@ class Tokenizer(metaclass=_Tokenizer):
                     self._advance(comment_start_size)
                     comment_count += 1
 
+            # 提取注释内容（去掉开始和结束标记）
             self._comments.append(self._text[comment_start_size : -comment_end_size + 1])
             self._advance(comment_end_size - 1)
         else:
+            # 处理行注释（如 -- 或 #），直到行尾或遇到换行符
             while not self._end and self.WHITE_SPACE.get(self._peek) is not TokenType.BREAK:
                 self._advance(alnum=True)
+            # 提取注释内容（去掉开始标记）
             self._comments.append(self._text[comment_start_size:])
 
+        # 检查是否为查询提示注释（如 /*+ ... */）
+        # 如果注释开始标记是提示标记，且前一个token是允许提示的SQL关键字
         if (
             comment_start == self.HINT_START
             and self.tokens
@@ -1295,9 +1436,12 @@ class Tokenizer(metaclass=_Tokenizer):
         ):
             self._add(TokenType.HINT)
 
-        # Leading comment is attached to the succeeding token, whilst trailing comment to the preceding.
-        # Multiple consecutive comments are preserved by appending them to the current comments list.
+        # 处理注释与token的关联关系：
+        # - 前导注释（leading comment）附加到后续的token上
+        # - 尾随注释（trailing comment）附加到前一个token上
+        # - 多个连续注释通过追加到当前注释列表来保留
         if comment_start_line == self._prev_token_line:
+            # 如果注释与前一个token在同一行，则附加到前一个token
             self.tokens[-1].comments.extend(self._comments)
             self._comments = []
             self._prev_token_line = self._line
@@ -1305,134 +1449,234 @@ class Tokenizer(metaclass=_Tokenizer):
         return True
 
     def _scan_number(self) -> None:
+        """
+        扫描并处理数字字面量
+        
+        支持多种数字格式：
+        - 普通数字：123, 123.45
+        - 科学计数法：1.23e-4
+        - 二进制：0b1010
+        - 十六进制：0x1A
+        - 带类型后缀：123::INTEGER
+        - 下划线分隔：1_000_000
+        """
+        # 处理以0开头的特殊数字格式
         if self._char == "0":
             peek = self._peek.upper()
             if peek == "B":
+                # 二进制数字（如 0b1010）
                 return self._scan_bits() if self.BIT_STRINGS else self._add(TokenType.NUMBER)
             elif peek == "X":
+                # 十六进制数字（如 0x1A）
                 return self._scan_hex() if self.HEX_STRINGS else self._add(TokenType.NUMBER)
 
-        decimal = False
-        scientific = 0
+        # 初始化数字扫描状态
+        decimal = False  # 是否已遇到小数点
+        scientific = 0   # 科学计数法状态：0=未开始，1=遇到E，2=遇到符号
 
+        # 循环扫描数字的各个部分
         while True:
             if self._peek.isdigit():
+                # 遇到数字字符，继续扫描
                 self._advance()
             elif self._peek == "." and not decimal:
+                # 遇到小数点且之前没有小数点
+                # 特殊处理：如果前一个token是参数标记，则停止扫描
                 if self.tokens and self.tokens[-1].token_type == TokenType.PARAMETER:
                     return self._add(TokenType.NUMBER)
                 decimal = True
                 self._advance()
             elif self._peek in ("-", "+") and scientific == 1:
+                # 科学计数法的符号部分（如 1.23e-4 中的 -）
                 scientific += 1
                 self._advance()
             elif self._peek.upper() == "E" and not scientific:
+                # 科学计数法的指数标记（如 1.23e4 中的 e）
                 scientific += 1
                 self._advance()
             elif self._peek.isidentifier():
-                number_text = self._text
+                # 遇到标识符字符，可能是类型后缀或下划线分隔符
+                number_text = self._text  # 保存当前数字部分
                 literal = ""
 
+                # 收集后续的标识符字符
                 while self._peek.strip() and self._peek not in self.SINGLE_TOKENS:
                     literal += self._peek
                     self._advance()
 
+                # 检查是否为数字类型后缀（如 INTEGER, BIGINT 等）
                 token_type = self.KEYWORDS.get(self.NUMERIC_LITERALS.get(literal.upper(), ""))
 
                 if token_type:
+                    # 发现类型后缀，生成三个token：数字、双冒号、类型
+                    # 例如：123::INTEGER
                     self._add(TokenType.NUMBER, number_text)
                     self._add(TokenType.DCOLON, "::")
                     return self._add(token_type, literal)
                 else:
+                    # 没有找到类型后缀，检查其他可能性
                     replaced = literal.replace("_", "")
+                    # 检查是否为下划线分隔的数字（如 1_000_000）
                     if self.dialect.NUMBERS_CAN_BE_UNDERSCORE_SEPARATED and replaced.isdigit():
                         return self._add(TokenType.NUMBER, number_text + replaced)
+                    # 检查方言是否允许标识符以数字开头
                     if self.dialect.IDENTIFIERS_CAN_START_WITH_DIGIT:
                         return self._add(TokenType.VAR)
 
+                # 回退扫描位置，将数字部分作为普通数字处理
                 self._advance(-len(literal))
                 return self._add(TokenType.NUMBER, number_text)
             else:
+                # 遇到其他字符，数字扫描结束
                 return self._add(TokenType.NUMBER)
 
     def _scan_bits(self) -> None:
+        """
+        扫描二进制数字字面量（如 0b1010）
+        
+        处理以 '0b' 开头的二进制数字，验证其有效性并生成相应的token
+        """
+        # 跳过 'b' 字符，因为已经在 _scan_number 中处理了 '0'
         self._advance()
+        # 提取完整的二进制数字字符串（包括 '0b' 前缀）
         value = self._extract_value()
         try:
-            # If `value` can't be converted to a binary, fallback to tokenizing it as an identifier
+            # 尝试将字符串转换为二进制数字，验证其有效性
+            # 如果转换失败，说明不是有效的二进制数字
             int(value, 2)
+            # 生成 BIT_STRING token，去掉 '0b' 前缀，只保留二进制数字部分
             self._add(TokenType.BIT_STRING, value[2:])  # Drop the 0b
         except ValueError:
+            # 如果无法转换为二进制数字，则将其作为普通标识符处理
+            # 这处理了像 '0bxyz' 这样的无效二进制格式
             self._add(TokenType.IDENTIFIER)
 
     def _scan_hex(self) -> None:
+        """
+        扫描十六进制数字字面量（如 0x1A）
+        
+        处理以 '0x' 开头的十六进制数字，验证其有效性并生成相应的token
+        """
+        # 跳过 'x' 字符，因为已经在 _scan_number 中处理了 '0'
         self._advance()
+        # 提取完整的十六进制数字字符串（包括 '0x' 前缀）
         value = self._extract_value()
         try:
-            # If `value` can't be converted to a hex, fallback to tokenizing it as an identifier
+            # 尝试将字符串转换为十六进制数字，验证其有效性
+            # 如果转换失败，说明不是有效的十六进制数字
             int(value, 16)
+            # 生成 HEX_STRING token，去掉 '0x' 前缀，只保留十六进制数字部分
             self._add(TokenType.HEX_STRING, value[2:])  # Drop the 0x
         except ValueError:
+            # 如果无法转换为十六进制数字，则将其作为普通标识符处理
+            # 这处理了像 '0xghz' 这样的无效十六进制格式
             self._add(TokenType.IDENTIFIER)
 
     def _extract_value(self) -> str:
+        """
+        提取当前扫描位置的值
+        
+        从当前位置开始，收集连续的字符直到遇到分隔符或特殊token
+        
+        Returns:
+            str: 提取的字符串值
+        """
+        # 循环收集字符，直到遇到分隔符或特殊token
         while True:
             char = self._peek.strip()
+            # 如果字符存在且不是单字符token，则继续收集
             if char and char not in self.SINGLE_TOKENS:
                 self._advance(alnum=True)
             else:
+                # 遇到分隔符或特殊token，停止收集
                 break
 
+        # 返回从开始位置到当前位置的所有文本
         return self._text
 
     def _scan_string(self, start: str) -> bool:
-        base = None
-        token_type = TokenType.STRING
+        """
+        扫描字符串字面量
+        
+        支持多种字符串格式：
+        - 普通字符串：'text', "text"
+        - 原始字符串：r'text'
+        - 十六进制字符串：x'1A2B'
+        - 二进制字符串：b'1010'
+        - Here文档字符串：$tag$text$tag$
+        
+        Args:
+            start: 字符串开始标记
+            
+        Returns:
+            bool: 如果成功识别并处理了字符串则返回True，否则返回False
+        """
+        base = None  # 数字进制（用于十六进制和二进制字符串）
+        token_type = TokenType.STRING  # 默认字符串类型
 
+        # 根据开始标记确定字符串类型和结束标记
         if start in self._QUOTES:
+            # 普通引号字符串（单引号或双引号）
             end = self._QUOTES[start]
         elif start in self._FORMAT_STRINGS:
+            # 格式化字符串（如十六进制、二进制、原始字符串等）
             end, token_type = self._FORMAT_STRINGS[start]
 
+            # 根据字符串类型设置相应的数字进制
             if token_type == TokenType.HEX_STRING:
-                base = 16
+                base = 16  # 十六进制
             elif token_type == TokenType.BIT_STRING:
-                base = 2
+                base = 2   # 二进制
             elif token_type == TokenType.HEREDOC_STRING:
+                # 处理Here文档字符串（如PostgreSQL的 $tag$...$tag$ 格式）
                 self._advance()
 
+                # 检查是否立即遇到结束标记（空标签）
                 if self._char == end:
                     tag = ""
                 else:
+                    # 提取标签内容
                     tag = self._extract_string(
                         end,
                         raw_string=True,
                         raise_unmatched=not self.HEREDOC_TAG_IS_IDENTIFIER,
                     )
 
+                # 验证标签的有效性
+                # 如果标签必须是标识符但实际不是，则回退处理
                 if tag and self.HEREDOC_TAG_IS_IDENTIFIER and (self._end or not tag.isidentifier()):
                     if not self._end:
                         self._advance(-1)
 
+                    # 回退到标签开始位置
                     self._advance(-len(tag))
+                    # 使用替代token类型处理
                     self._add(self.HEREDOC_STRING_ALTERNATIVE)
                     return True
 
+                # 构造完整的结束标记（开始标记 + 标签 + 结束标记）
                 end = f"{start}{tag}{end}"
         else:
+            # 不支持的字符串格式
             return False
 
+        # 跳过开始标记
         self._advance(len(start))
+        # 提取字符串内容，根据类型决定是否为原始字符串
         text = self._extract_string(end, raw_string=token_type == TokenType.RAW_STRING)
 
+        # 对于数字字符串（十六进制、二进制），验证其有效性
         if base:
             try:
+                # 尝试将字符串转换为指定进制的数字
                 int(text, base)
             except Exception:
+                # 如果转换失败，抛出错误
                 raise TokenError(
                     f"Numeric string contains invalid characters from {self._line}:{self._start}"
                 )
 
+        # 生成相应的token
         self._add(token_type, text)
         return True
 
@@ -1444,13 +1688,28 @@ class Tokenizer(metaclass=_Tokenizer):
         self._add(TokenType.IDENTIFIER, text)
 
     def _scan_var(self) -> None:
+        """
+        扫描未引号标识符/变量。
+
+        规则:
+            - 连续读取下一个非空白字符（`_peek.strip()`），只要它不是"硬边界"的单字符 token，
+              或者该字符被允许出现在变量中（`VAR_SINGLE_TOKENS`，由方言定制）。
+            - 使用 `alnum=True` 加速前进，尽可能一次性跨过连续的字母数字片段以提升性能。
+            - 扫描结束后：
+                * 如果前一个 token 是参数标记（如 `@`，`TokenType.PARAMETER`），则强制将本片段作为变量 `VAR`；
+                * 否则将本片段尝试按关键字表（不区分大小写）解析为关键字；若非关键字，则作为 `VAR`。
+        """
         while True:
             char = self._peek.strip()
             if char and (char in self.VAR_SINGLE_TOKENS or char not in self.SINGLE_TOKENS):
+                # 允许的单字符（方言自定义）或非单字符分隔符：继续前进
                 self._advance(alnum=True)
             else:
+                # 遇到硬边界（如逗号、括号、运算符等）或输入结束：停止
                 break
 
+        # 若前一个 token 是参数起始（如 @x），则无条件视为变量；
+        # 否则先尝试关键字映射（大写匹配），失败则退化为变量。
         self._add(
             TokenType.VAR
             if self.tokens and self.tokens[-1].token_type == TokenType.PARAMETER
@@ -1464,66 +1723,125 @@ class Tokenizer(metaclass=_Tokenizer):
         raw_string: bool = False,
         raise_unmatched: bool = True,
     ) -> str:
+        """
+        提取字符串内容，处理转义字符和特殊序列
+        
+        这是字符串解析的核心方法，负责从当前位置提取字符串内容直到遇到结束分隔符。
+        支持转义字符处理、原始字符串、未转义序列等高级特性。
+        
+        Args:
+            delimiter: 字符串结束分隔符
+            escapes: 转义字符集合，如果为None则使用默认的STRING_ESCAPES
+            raw_string: 是否为原始字符串（不处理转义）
+            raise_unmatched: 是否在找不到匹配分隔符时抛出异常
+            
+        Returns:
+            str: 提取的字符串内容
+        """
         text = ""
         delim_size = len(delimiter)
+        # 如果没有指定转义字符，使用默认的字符串转义字符集合
         escapes = self._STRING_ESCAPES if escapes is None else escapes
 
+        # 主循环：逐字符处理字符串内容
         while True:
+            # 处理未转义序列（某些方言支持的特殊序列，如PostgreSQL的$$）
             if (
-                not raw_string
-                and self.dialect.UNESCAPED_SEQUENCES
-                and self._peek
-                and self._char in self.STRING_ESCAPES
+                not raw_string  # 原始字符串不处理未转义序列
+                and self.dialect.UNESCAPED_SEQUENCES  # 方言支持未转义序列
+                and self._peek  # 还有下一个字符
+                and self._char in self.STRING_ESCAPES  # 当前字符是转义字符
             ):
+                # 检查当前字符+下一个字符是否构成未转义序列
                 unescaped_sequence = self.dialect.UNESCAPED_SEQUENCES.get(self._char + self._peek)
                 if unescaped_sequence:
+                    # 找到未转义序列，跳过两个字符并添加对应的内容
                     self._advance(2)
                     text += unescaped_sequence
                     continue
+            
+            # 处理转义字符
             if (
-                (self.STRING_ESCAPES_ALLOWED_IN_RAW_STRINGS or not raw_string)
-                and self._char in escapes
-                and (self._peek == delimiter or self._peek in escapes)
-                and (self._char not in self._QUOTES or self._char == self._peek)
+                (self.STRING_ESCAPES_ALLOWED_IN_RAW_STRINGS or not raw_string)  # 原始字符串是否允许转义
+                and self._char in escapes  # 当前字符是转义字符
+                and (self._peek == delimiter or self._peek in escapes)  # 下一个字符是分隔符或转义字符
+                and (self._char not in self._QUOTES or self._char == self._peek)  # 引号字符的特殊处理
             ):
+                # 处理转义序列
                 if self._peek == delimiter:
+                    # 转义分隔符：将分隔符作为普通字符添加到字符串中
                     text += self._peek
                 else:
+                    # 转义转义字符：将转义字符本身添加到字符串中
                     text += self._char + self._peek
 
+                # 检查是否还有更多字符可读
                 if self._current + 1 < self.size:
-                    self._advance(2)
+                    self._advance(2)  # 跳过转义字符和下一个字符
                 else:
+                    # 到达字符串末尾但转义序列不完整，抛出错误
                     raise TokenError(f"Missing {delimiter} from {self._line}:{self._current}")
             else:
+                # 检查是否遇到字符串结束分隔符
                 if self._chars(delim_size) == delimiter:
+                    # 找到结束分隔符
                     if delim_size > 1:
+                        # 多字符分隔符需要额外前进
                         self._advance(delim_size - 1)
-                    break
+                    break  # 字符串提取完成
 
+                # 检查是否到达输入末尾
                 if self._end:
                     if not raise_unmatched:
+                        # 不抛出异常，返回当前已提取的内容加上当前字符
                         return text + self._char
 
+                    # 抛出未匹配分隔符错误
                     raise TokenError(f"Missing {delimiter} from {self._line}:{self._start}")
 
+                # 记录当前位置，用于提取字符范围
                 current = self._current - 1
+                # 前进到下一个字符
                 self._advance(alnum=True)
+                # 将当前位置到新位置之间的字符添加到结果中
                 text += self.sql[current : self._current - 1]
 
         return text
 
     def tokenize_rs(self, sql: str) -> t.List[Token]:
+        """
+        使用Rust实现的词法分析器进行token化
+        
+        这是对Rust版本词法分析器的Python包装，提供更高的性能。
+        当Rust tokenizer可用时，优先使用它来提升解析速度。
+        
+        Args:
+            sql: 要解析的SQL字符串
+            
+        Returns:
+            t.List[Token]: 解析得到的token列表
+            
+        Raises:
+            SqlglotError: 当Rust tokenizer不可用时
+            TokenError: 当解析过程中出现错误时
+        """
+        # 检查Rust tokenizer是否可用
         if not self._RS_TOKENIZER:
             raise SqlglotError("Rust tokenizer is not available")
 
+        # 调用Rust实现的tokenizer进行解析
+        # 返回tokens列表和可能的错误信息
         tokens, error_msg = self._RS_TOKENIZER.tokenize(sql, self._rs_dialect_settings)
+        
+        # 将Rust返回的token类型索引转换为Python的TokenType枚举
         for token in tokens:
             token.token_type = _ALL_TOKEN_TYPES[token.token_type_index]
 
-        # Setting this here so partial token lists can be inspected even if there is a failure
+        # 设置tokens属性，即使解析失败也能检查部分结果
+        # 这对于调试和错误处理很有用
         self.tokens = tokens
 
+        # 如果Rust tokenizer报告了错误，抛出Python异常
         if error_msg is not None:
             raise TokenError(error_msg)
 

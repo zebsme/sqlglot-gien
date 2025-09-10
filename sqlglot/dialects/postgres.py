@@ -37,6 +37,7 @@ from sqlglot.dialects.dialect import (
     count_if_to_sum,
     groupconcat_sql,
     Version,
+
 )
 from sqlglot.generator import unsupported_args
 from sqlglot.helper import is_int, seq_get
@@ -330,6 +331,7 @@ class Postgres(Dialect):
             "BEGIN": TokenType.COMMAND,
             "BEGIN TRANSACTION": TokenType.BEGIN,
             "BIGSERIAL": TokenType.BIGSERIAL,
+            "CHARACTER VARYING": TokenType.VARCHAR,
             "CONSTRAINT TRIGGER": TokenType.COMMAND,
             "CSTRING": TokenType.PSEUDO_TYPE,
             "DECLARE": TokenType.COMMAND,
@@ -457,8 +459,17 @@ class Postgres(Dialect):
                 exp.JSONExtractScalar, arrow_req_json_type=self.JSON_ARROWS_REQUIRE_JSON_TYPE
             )([this, path]),
         }
+        
+        SUPPORT_INDEX_NAME_WITH_DOT = True
 
         def _parse_query_parameter(self) -> t.Optional[exp.Expression]:
+            # 解析查询参数占位符（Postgres 支持 $ 与 % 两类占位符）。
+            # 逻辑说明：
+            # 1) 采用前瞻方式检测下一个是否为左括号，从而支持形如 %(name)S 这类“命名占位符”的括号标识符部分；
+            #    使用 advance=False 仅做匹配判断，不消耗当前 token，避免影响后续解析流程。
+            # 2) 如果存在括号，则解析括号里的标识符作为占位符名（例如 name），否则为 None（匿名/位置占位符）。
+            # 3) 随后匹配一个文本序列 "S" 以兼容 %(...)S 样式（某些方言/驱动中会要求该后缀）。
+            # 4) 最终构造 Placeholder 表达式节点，this 指向可选的命名标识符。
             this = (
                 self._parse_wrapped(self._parse_id_var)
                 if self._match(TokenType.L_PAREN, advance=False)
@@ -468,6 +479,16 @@ class Postgres(Dialect):
             return self.expression(exp.Placeholder, this=this)
 
         def _parse_operator(self, this: t.Optional[exp.Expression]) -> t.Optional[exp.Expression]:
+            # 解析 Postgres 特有的 OPERATOR(...) 语法：允许显式指定操作符（含自定义/带 schema 的操作符）。
+            # 逻辑说明：
+            # - 外层 while 循环：只要后续存在以括号包裹的操作符定义，就持续解析并与右侧表达式组合。
+            # - 内层循环：收集括号内的操作符原始文本（不做拆分），直到遇到右括号；
+            #   这样可以保留诸如 schema.+ 或多字符操作符的完整形式。
+            # - 解析完成后，构造 exp.Operator 节点：
+            #   - comments 使用前置注释（保持注释与 AST 的关联）；
+            #   - this 为左操作数；operator 为括号内解析到的原始操作符文本；
+            #   - expression 为右操作数（按位/算术优先级入口 _parse_bitwise）。
+            # - 若后续继续出现 OPERATOR 关键字，则继续与下一个右操作数组合，形成链式结构。
             while True:
                 if not self._match(TokenType.L_PAREN):
                     break
@@ -491,6 +512,11 @@ class Postgres(Dialect):
             return this
 
         def _parse_date_part(self) -> exp.Expression:
+            # 解析日期/时间字段抽取（对应 EXTRACT 语义）。
+            # 逻辑说明：
+            # - 先解析 part（类型/字段），再可选匹配一个逗号，然后解析 value（被抽取的时间表达式）。
+            # - 若 part 解析结果是列或字面量，则转为变量形式（exp.var）以符合抽取函数所期望的标识类型。
+            # - 最终生成 exp.Extract 节点：this=part, expression=value。
             part = self._parse_type()
             self._match(TokenType.COMMA)
             value = self._parse_bitwise()
@@ -501,9 +527,16 @@ class Postgres(Dialect):
             return self.expression(exp.Extract, this=part, expression=value)
 
         def _parse_unique_key(self) -> t.Optional[exp.Expression]:
+            # Postgres 不使用 "UNIQUE KEY" 这一语法（更常见于 MySQL），
+            # 在该方言下对此语法解析返回 None，表示不支持或跳过。
             return None
 
         def _parse_jsonb_exists(self) -> exp.JSONBExists:
+            # 解析 JSONB 存在性检查表达式。
+            # 逻辑说明：
+            # - this：目标 JSONB 表达式；
+            # - path：可选，用逗号分隔，解析后转为 JSONPath（通过 dialect.to_json_path）。
+            # 最终构造为 exp.JSONBExists 节点。
             return self.expression(
                 exp.JSONBExists,
                 this=self._parse_bitwise(),
@@ -518,6 +551,10 @@ class Postgres(Dialect):
             | exp.ComputedColumnConstraint
             | exp.GeneratedAsRowColumnConstraint
         ):
+            # 解析列的 "GENERATED AS" 相关约束：
+            # - 先复用父类实现以处理通用的 identity/row 生成列。
+            # - 若随后匹配到关键字 STORED，说明这是基于表达式且以物化方式存储的生成列，
+            #   因此将其转换为 ComputedColumnConstraint 并保留先前计算的表达式。
             this = super()._parse_generated_as_identity()
 
             if self._match_text_seq("STORED"):
@@ -528,6 +565,11 @@ class Postgres(Dialect):
         def _parse_user_defined_type(
             self, identifier: exp.Identifier
         ) -> t.Optional[exp.Expression]:
+            # 解析用户自定义类型（UDT），支持 schema 限定的多段标识符（a.b.c）。
+            # 逻辑说明：
+            # - 以首个标识符为起点，若后续匹配到点号，则持续拼接为 exp.Dot 链，
+            #   以保留完整的限定名（如 schema.type）。
+            # - 返回 DataType，标记 udt=True 表示是用户自定义类型。
             udt_type: exp.Identifier | exp.Dot = identifier
 
             while self._match(TokenType.DOT):
@@ -579,6 +621,8 @@ class Postgres(Dialect):
             exp.DataType.Type.DATETIME: "TIMESTAMP",
             exp.DataType.Type.TIMESTAMPNTZ: "TIMESTAMP",
             exp.DataType.Type.BLOB: "BYTEA",
+            exp.DataType.Type.INT: "INTEGER",  # add below
+            exp.DataType.Type.TINYINT: "TINYINT",
         }
 
         TRANSFORMS = {

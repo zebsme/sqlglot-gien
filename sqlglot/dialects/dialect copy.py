@@ -1304,21 +1304,12 @@ def build_formatted_time(
     """
 
     def _builder(args: t.List):
-        # 获取格式参数，如果没有则使用默认值
-        format_arg = seq_get(args, 1)
-        if format_arg is None:
-            if default is True:
-                format_value = Dialect[dialect].TIME_FORMAT
-            elif default is not None:
-                format_value = exp.Literal.string(default)
-            else:
-                format_value = None
-        else:
-            format_value = Dialect[dialect].format_time(format_arg)
-            
         return exp_class(
             this=seq_get(args, 0),
-            format=format_value,
+            format=Dialect[dialect].format_time(
+                seq_get(args, 1)
+                or (Dialect[dialect].TIME_FORMAT if default is True else default or None)
+            ),
         )
 
     return _builder
