@@ -439,6 +439,10 @@ class TokenType(AutoName):
     ANALYZE = auto()
     NAMESPACE = auto()
     EXPORT = auto()
+    SERVER = auto()
+    EXTERNAL = auto()
+    LOG_INTO = auto()
+    REJECT_LIMIT = auto()
 
     # sentinel
     HIVE_TOKEN_STREAM = auto()

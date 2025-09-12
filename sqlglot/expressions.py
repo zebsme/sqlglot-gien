@@ -4004,6 +4004,7 @@ class Drop(Expression):
         "expressions": False, # 对象表达式列表（支持删除多个对象）
         "exists": False,      # IF EXISTS选项，避免删除不存在对象时出错
         "temporary": False,   # 是否删除临时对象
+        "external": False,    # 是否删除外部表
         "materialized": False, # 是否为物化视图（PostgreSQL等）
         "cascade": False,     # CASCADE选项，级联删除依赖对象
         "constraints": False, # 约束相关选项
@@ -6268,6 +6269,15 @@ class SqlReadWriteProperty(Property):
     # this: 读写类型（READS SQL DATA、MODIFIES SQL DATA等）
     arg_types = {"this": True}
 
+class TableReadWriteProperty(Property):
+    """
+    Table读写属性类。
+    
+    表示外表数据访问特性。
+    定义外表是否允许读取或修改数据。
+    """
+    # this: 读写类型（READ ONLY、WRITE ONLY, READ WRITE等）
+    arg_types = {"this": True}
 
 class SqlSecurityProperty(Property):
     """
@@ -6509,7 +6519,15 @@ class TablespaceProperty(Property):
     # this: 表空间名称
     arg_types = {"this": True}
 
-
+class ServerProperty(Property):
+    """
+    服务器属性类。
+    
+    表示GaussDB中的服务器配置。
+    服务器控制数据的物理存储位置。
+    """
+    # this: 服务器名称
+    arg_types = {"this": True}
 
 class Properties(Expression):
     """
@@ -6548,6 +6566,7 @@ class Properties(Expression):
         "ENCODE": EncodeProperty,
         "INCLUDE": IncludeProperty,
         "TABLESPACE": TablespaceProperty,
+        "SERVER": ServerProperty,
     }
 
     # 反向映射：属性类到属性名称

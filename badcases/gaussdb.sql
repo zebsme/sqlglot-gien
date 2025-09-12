@@ -29,6 +29,7 @@ PARTITION BY LIST (data_dt)
 select   t1.ORG_NUM
 from fq.fq_item_gl_bal t1
 where t1.data_dt =  DATE '2024-01-01' + INTERVAL '-12,month' and sum_typ_cd='日';
+
 --SERVER，OPTIONS，READ ONLY
 CREATE  TABLE SDB.S02_KXD_HBKHLOG_EXT
 ( 

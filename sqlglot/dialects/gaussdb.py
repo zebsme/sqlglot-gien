@@ -21,11 +21,16 @@ class GaussDB(Postgres):  # 继承自 PostgreSQL 方言
             "FLOAT8": TokenType.DOUBLE,
             "DOUBLE": TokenType.DOUBLE,
             "MINUS": TokenType.EXCEPT,
+            "SERVER": TokenType.SERVER,
+            "FOREIGN": TokenType.EXTERNAL,
+            "LOG INTO": TokenType.LOG_INTO,
+            "PER NODE REJECT LIMIT": TokenType.REJECT_LIMIT,
         }
 
     class Parser(Postgres.Parser):
 
         PROPERTY_PARSERS = {
+            # "LOG INTO": lambda self: self.expression(exp.Property, this="LOG INTO", value=self._parse_id_var(any_token=True)),
             **Postgres.Parser.PROPERTY_PARSERS,
             "DISTRIBUTE BY": lambda self: self._parse_distributed_property(),
             "LOCAL": lambda self: (self._match_text_seq("TEMPORARY") or self._match_text_seq("TEMP"))
@@ -33,15 +38,65 @@ class GaussDB(Postgres):  # 继承自 PostgreSQL 方言
             "PARTITION BY": lambda self: self._parse_partitioned_by_with_list(),
             "PARTITIONED BY": lambda self: self._parse_partitioned_by(),
             "PARTITIONED_BY": lambda self: self._parse_partitioned_by(),
+            "FOREIGN": lambda self: self.expression(exp.ExternalProperty),
+            "SERVER": lambda self: self._parse_server_property(),
+            "OPTIONS": lambda self: self._parse_option_properties(),
+            "LOG INTO": lambda self: self.expression(exp.WithJournalTableProperty, this=self._parse_table_parts()),
+            "PER NODE REJECT LIMIT":lambda self: self.parse_kv_property(key="PER NODE REJECT LIMIT", quoted=True)
         }
         
-        # ADD_CONSTRAINT_TOKENS = Postgres.Parser.ADD_CONSTRAINT_TOKENS.add(TokenType.PARTITION)
+        # OPTIONS中各类参数的解析器
+        OPTION_PARSERS = {
+            "LOCATION":lambda self: self._parse_property_assignment(exp.LocationProperty),
+            "FORMAT": lambda self: self._parse_property_assignment(exp.FileFormatProperty),
+            "HEADER":lambda self: self.parse_kv_property(key="HEADER", quoted=True),
+            "FILEHEADER":lambda self: self.parse_kv_property(key="FILEHEADER", quoted=True),
+            "OUT_FILENAME_PREFIX":lambda self: self.parse_kv_property(key="OUT_FILENAME_PREFIX", quoted=True),
+            "DELIMITER":lambda self: self.parse_kv_property(key="DELIMITER", quoted=True),
+            "QUOTE":lambda self: self.parse_kv_property(key="QUOTE", quoted=True),
+            "ESCAPE":lambda self: self.parse_kv_property(key="ESCAPE", quoted=True),
+            "NULL":lambda self: self.parse_kv_property(key="NULL", quoted=True),
+            "BLANK_NUMBER_STR_TO_NUL":lambda self: self.parse_kv_property(key="BLANK_NUMBER_STR_TO_NUL", quoted=True),
+            "NOESCAPING":lambda self: self.parse_kv_property(key="NOESCAPING", quoted=True),
+            "ENCODING":lambda self: self.parse_kv_property(key="ENCODING", quoted=True),
+            "DATAENCODING":lambda self: self.parse_kv_property(key="DATAENCODING", quoted=True),
+            "MODE":lambda self: self.parse_kv_property(key="MODE", quoted=True),
+            "EOL":lambda self: self.parse_kv_property(key="EOL", quoted=True),
+            "CONFLICT_DELIMITER":lambda self: self.parse_kv_property(key="CONFLICT_DELIMITER", quoted=True),
+            "FILE_TYPE":lambda self: self.parse_kv_property(key="FILE_TYPE", quoted=True),
+            "AUTO_CREATE_PIPE":lambda self: self.parse_kv_property(key="AUTO_CREATE_PIPE", quoted=True),
+            "DEL_PIPE":lambda self: self.parse_kv_property(key="DEL_PIPE", quoted=True),
+            "GDS_COMPRESS":lambda self: self.parse_kv_property(key="GDS_COMPRESS", quoted=True),
+            "PRESERVE_BLANKS":lambda self: self.parse_kv_property(key="PRESERVE_BLANKS", quoted=True),
+            "FIX":lambda self: self.parse_kv_property(key="FIX", quoted=True),
+            "OUT_FIX_ALIGNMENT":lambda self: self.parse_kv_property(key="OUT_FIX_ALIGNMENT", quoted=True),
+            "OUT_FIX_NUM_ALIGNMENT":lambda self: self.parse_kv_property(key="OUT_FIX_NUM_ALIGNMENT", quoted=True),
+            "DATE_FORMAT":lambda self: self.parse_kv_property(key="DATE_FORMAT", quoted=True),
+            "TIME_FORMAT":lambda self: self.parse_kv_property(key="TIME_FORMAT", quoted=True),
+            "TIMESTAMP_FORMAT":lambda self: self.parse_kv_property(key="TIMESTAMP_FORMAT", quoted=True),
+            "SMALLDATETIME_FORMAT":lambda self: self.parse_kv_property(key="SMALLDATETIME_FORMAT", quoted=True),
+            "FILL_MISSING_FIELDS":lambda self: self.parse_kv_property(key="FILL_MISSING_FIELDS", quoted=True),
+            "IGNORE_EXTRA_DATA":lambda self: self.parse_kv_property(key="IGNORE_EXTRA_DATA", quoted=True),
+            "REJECT_LIMIT":lambda self: self.parse_kv_property(key="PER NODE REJECT LIMIT", quoted=True),
+            "COMPATIBLE_ILLEGAL_CHARS":lambda self: self.parse_kv_property(key="COMPATIBLE_ILLEGAL_CHARS", quoted=True),
+            "REPLACE_ILLEGAL_CHARS":lambda self: self.parse_kv_property(key="REPLACE_ILLEGAL_CHARS", quoted=True),
+            "WITH ERROR_TABLE_NAME":lambda self: self.parse_kv_property(key="WITH ERROR_TABLE_NAME", quoted=True),
+            "LOG INTO ERROR_TABLE_NAME":lambda self: self.parse_kv_property(key="LOG INTO ERROR_TABLE_NAME", quoted=True),
+            "REMOTE LOG":lambda self: self.parse_kv_property(key="REMOTE LOG", quoted=True),
+            "PER NODE REJECT LIMIT":lambda self: self.parse_kv_property(key="PER NODE REJECT LIMIT", quoted=True),
+            "FILE_SEQUENCE":lambda self: self.parse_kv_property(key="FILE_SEQUENCE", quoted=True),
+        }
+        
+        # 解析OPTIONS中的参数取值，包括各类编码的字符串和数字
+        OPTION_VALUE_PARSERS = {
+            **Postgres.Parser.STRING_PARSERS,
+            **Postgres.Parser.NUMERIC_PARSERS,
+        }
             
         
         ALTER_PARSERS = {
             **Postgres.Parser.ALTER_PARSERS,
             "ADD": lambda self: self._parse_alter_table_add(),
-            # "PARTITION BY": lambda self: self._parse_partitioned_by(),
         }
         
         FUNCTIONS = {
@@ -55,7 +110,30 @@ class GaussDB(Postgres):  # 继承自 PostgreSQL 方言
         }
         
         
+        def parse_kv_property(self, key: str, quoted: True) -> exp.Property:
+            """解析形如 `KEY "VALUE"` 的K-V属性。"""
+            if self._match_set(self.OPTION_VALUE_PARSERS):
+                value = self.OPTION_VALUE_PARSERS[self._prev.token_type](self, self._prev)
+                return self.expression(exp.Property, this=key, value=value)
+            return self._parse_placeholder()
+        
+        
+        def _parse_option_properties(self) -> t.List[exp.Expression]:
+            """解析OPTIONS形如 `(KEY1 "VALUE1", KEY2 "VALUE2", ...)` 的 *括号包裹* 属性列表。"""
+            return self._parse_wrapped_csv(self._parse_option_property)
+        
+        def _parse_option_property(self) -> t.Optional[exp.Expression]:
+            """
+            OPTIONS的通用属性解析入口。
+            只解释``OPTION_PARSERS`` 中的参数，直接调用对应解析器。
+            """
+            if self._match_texts(self.OPTION_PARSERS):
+                return self.OPTION_PARSERS[self._prev.text.upper()](self)
+        
         def _parse_alter_table_add(self) -> t.List[exp.Expression]:
+            """
+            解析ALTER TABLE ADD 语法，支持分区、约束、列定义等。
+            """
             def _parse_add_alteration() -> t.Optional[exp.Expression]:
                 # 消费 ADD 关键字，随后分支解析具体对象
                 self._match_text_seq("ADD")
@@ -155,6 +233,9 @@ class GaussDB(Postgres):  # 继承自 PostgreSQL 方言
             return self._parse_csv(_parse_add_alteration)
         
         def _parse_distributed_property(self) -> exp.DistributedByProperty:
+            """
+            解析DISTRIBUTED 语法，支持HASH、RANDOM、BUCKETS等。
+            """
             kind = "HASH"
             expressions: t.Optional[t.List[exp.Expression]] = None
             if self._match_text_seq("BY", "HASH"):
@@ -178,6 +259,9 @@ class GaussDB(Postgres):  # 继承自 PostgreSQL 方言
             )
             
         def _parse_partition(self) -> t.Optional[exp.Partition]:
+            """
+            解析PARTITION PARTITION / SUBPARTITION 子句, 支持括号包裹的PARTITION / SUBPARTITION 子句。
+            """
             # 解析 PARTITION / SUBPARTITION 子句
             if not self._match_texts(self.PARTITION_KEYWORDS):
                 return None  # 未出现分区关键字则不进入该分支

@@ -1287,7 +1287,7 @@ class Parser(metaclass=_Parser):
         "VOLATILE": lambda self: self._parse_volatile_property(),
         "WITH": lambda self: self._parse_with_property(),
         "TABLESPACE": lambda self: self._parse_tablespace_property(),
-	"OPTIONS": lambda self: self._parse_wrapped_properties(),
+	    "OPTIONS": lambda self: self._parse_wrapped_properties(),
     }
 
     CONSTRAINT_PARSERS = {
@@ -2317,6 +2317,8 @@ class Parser(metaclass=_Parser):
         start = self._prev
         # 解析TEMPORARY关键字
         temporary = self._match(TokenType.TEMPORARY)
+        # 解析EXTERNAL关键字
+        external = self._match(TokenType.EXTERNAL)
         # 解析MATERIALIZED关键字
         materialized = self._match_text_seq("MATERIALIZED")
 
@@ -2354,6 +2356,7 @@ class Parser(metaclass=_Parser):
             expressions=expressions,
             kind=self.dialect.CREATABLE_KIND_MAPPING.get(kind) or kind,
             temporary=temporary,
+            external=external,
             materialized=materialized,
             cascade=self._match_text_seq("CASCADE"),
             constraints=self._match_text_seq("CONSTRAINTS"),
@@ -2800,6 +2803,14 @@ class Parser(metaclass=_Parser):
         if self._match_text_seq("SQL", "SECURITY"):
             return self.expression(exp.SqlSecurityProperty, definer=self._match_text_seq("DEFINER"))
 
+        # 解析表的读写属性,目前仅针对Gaussdb的外表
+        if self._match_text_seq("READ", "ONLY"):
+            return self.expression(exp.TableReadWriteProperty, this="READ ONLY")
+        if self._match_text_seq("WRITE", "ONLY"):
+            return self.expression(exp.TableReadWriteProperty, this="WRITE ONLY")
+        if self._match_text_seq("READ", "WRITE"):
+            return self.expression(exp.TableReadWriteProperty, this="READ WRITE")
+        
         index = self._index
         key = self._parse_column()
 
@@ -3129,10 +3140,19 @@ class Parser(metaclass=_Parser):
                 exp.WithProcedureOptions, expressions=self._parse_csv(self._parse_procedure_option)
             )
 
+        
+        withisolatedloading = self._parse_withisolatedloading()
+        if withisolatedloading:
+            return withisolatedloading
+        # 补充构建外表时 WITH作为LOG INTO用的情况
+        elif self._curr.token_type == TokenType.VAR:
+            return self.expression(exp.WithJournalTableProperty, this=self._parse_table_parts())
+            # self._advance()
+            # return self.expression(
+            #     exp.Property, this = "LOG INTO", value = exp.Var(self._prev.text))
+
         if not self._next:
             return None
-
-        return self._parse_withisolatedloading()
 
     def _parse_procedure_option(self) -> exp.Expression | None:
         """
@@ -10817,7 +10837,12 @@ class Parser(metaclass=_Parser):
         # 解析表空间名称
         tablespace_name = self._parse_field()
         return self.expression(exp.TablespaceProperty, this=tablespace_name)
-    
+
+    def _parse_server_property(self) -> exp.TablespaceProperty:
+        """解析外表的SERVER属性"""
+        # 解析SERVER名称
+        server_name = self._parse_field()
+        return self.expression(exp.ServerProperty, this=server_name)
     # def _parse_index_name(self) -> t.Optional[exp.Expression]:
     #     """解析可能包含schema的索引名称"""
     #     # 先尝试解析单个标识符

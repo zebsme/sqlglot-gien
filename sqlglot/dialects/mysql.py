@@ -264,6 +264,7 @@ class MySQL(Dialect):
             "_UTF8MB4": TokenType.INTRODUCER,
             "@@": TokenType.SESSION_PARAMETER,
             "UNIQUE": TokenType.INDEX,
+            "EXTERNAL": TokenType.EXTERNAL,
         }
 
         COMMANDS = {*tokens.Tokenizer.COMMANDS, TokenType.REPLACE} - {TokenType.SHOW}
