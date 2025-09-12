@@ -49,3 +49,17 @@ OPTIONS (
 )
 READ ONLY
 ;
+-- TO GROUP group_name， ENABLE ROW MOVEMENT
+CREATE  TABLE d60_paf_settle_acct_dtl (
+	data_dt timestamp without time zone,
+)
+WITH (orientation=column, compression=low, colversion=2.0, enable_delta=false)
+TABLESPACE h_tbs_cdb
+DISTRIBUTE BY HASH(acct_no)
+TO GROUP group_version1
+PARTITION BY LIST (data_dt)
+( 
+	 PARTITION p_19000101 VALUES ('1900-01-01 00:00:00'::timestamp without time zone),
+	 PARTITION p_20241031 VALUES ('2024-10-31 00:00:00'::timestamp without time zone)
+)
+ENABLE ROW MOVEMENT;

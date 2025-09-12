@@ -367,6 +367,7 @@ class Postgres(Dialect):
         }
         KEYWORDS.pop("/*+")
         KEYWORDS.pop("DIV")
+        KEYWORDS.pop("NULLABLE")
 
         SINGLE_TOKENS = {
             **tokens.Tokenizer.SINGLE_TOKENS,
