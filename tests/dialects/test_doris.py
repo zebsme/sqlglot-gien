@@ -86,6 +86,8 @@ class TestDoris(Validator):
         )
         self.validate_identity("""JSON_TYPE('{"foo": "1" }', '$.foo')""")
 
+        self.validate_identity("L2_DISTANCE(x, y)")
+
     def test_identity(self):
         self.validate_identity("CREATE TABLE t (c INT) PROPERTIES ('x'='y')")
         self.validate_identity("CREATE TABLE t (c INT) COMMENT 'c'")
@@ -101,6 +103,7 @@ class TestDoris(Validator):
         self.validate_identity("TIMESTAMP('2022-01-01')")
         self.validate_identity("DATE_TRUNC(event_date, 'DAY')")
         self.validate_identity("DATE_TRUNC('2010-12-02 19:28:30', 'HOUR')")
+        self.validate_identity("CURRENT_DATE()")
 
     def test_regex(self):
         self.validate_all(
@@ -118,6 +121,7 @@ class TestDoris(Validator):
     def test_key(self):
         self.validate_identity("CREATE TABLE test_table (c1 INT, c2 INT) UNIQUE KEY (c1)")
         self.validate_identity("CREATE TABLE test_table (c1 INT, c2 INT) DUPLICATE KEY (c1)")
+        self.validate_identity("CREATE MATERIALIZED VIEW test_table (c1 INT, c2 INT) KEY (c1)")
 
     def test_distributed(self):
         self.validate_identity(
@@ -142,6 +146,9 @@ class TestDoris(Validator):
         self.validate_identity("CREATE TABLE test_table (c1 INT, c2 DATE) PARTITION BY (c1, c2)")
         self.validate_identity(
             "CREATE TABLE test_table (c1 INT, c2 DATE) PARTITION BY (DATE_TRUNC(c2, 'MONTH'))"
+        )
+        self.validate_identity(
+            "CREATE TABLE test_table (c1 INT) PARTITION BY LIST (`c1`) (PARTITION p1 VALUES IN (1, 2), PARTITION p2 VALUES IN (3))"
         )
 
     def test_table_alias_conversion(self):
@@ -227,4 +234,21 @@ class TestDoris(Validator):
                 "duckdb": "ALTER TABLE db.t1 RENAME TO t2",
                 "doris": "ALTER TABLE db.t1 RENAME t2",
             },
+        )
+
+    def test_materialized_view_properties(self):
+        # BUILD modes
+        self.validate_identity("CREATE MATERIALIZED VIEW mv BUILD IMMEDIATE AS SELECT 1")
+        self.validate_identity("CREATE MATERIALIZED VIEW mv BUILD DEFERRED AS SELECT 1")
+
+        # REFRESH methods with triggers
+        self.validate_identity("CREATE MATERIALIZED VIEW mv REFRESH COMPLETE ON MANUAL AS SELECT 1")
+        self.validate_identity("CREATE MATERIALIZED VIEW mv REFRESH AUTO ON COMMIT AS SELECT 1")
+        self.validate_identity(
+            "CREATE MATERIALIZED VIEW mv REFRESH AUTO ON SCHEDULE EVERY 5 MINUTE STARTS '2025-01-01 00:00:00' AS SELECT 1"
+        )
+
+        # Combined BUILD and REFRESH
+        self.validate_identity(
+            "CREATE MATERIALIZED VIEW mv BUILD DEFERRED REFRESH AUTO ON SCHEDULE EVERY 10 MINUTE AS SELECT 1"
         )

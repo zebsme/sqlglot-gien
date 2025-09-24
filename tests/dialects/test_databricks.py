@@ -1,4 +1,4 @@
-from sqlglot import exp, transpile
+from sqlglot import exp, transpile, parse_one
 from sqlglot.errors import ParseError
 from tests.dialects.test_dialect import Validator
 
@@ -11,6 +11,7 @@ class TestDatabricks(Validator):
         self.assertEqual(null_type.sql(), "NULL")
         self.assertEqual(null_type.sql("databricks"), "VOID")
 
+        self.validate_identity("REGEXP_LIKE(x, y)")
         self.validate_identity("SELECT CAST(NULL AS VOID)")
         self.validate_identity("SELECT void FROM t")
         self.validate_identity("SELECT * FROM stream")
@@ -203,6 +204,7 @@ class TestDatabricks(Validator):
             "WITH t AS (VALUES ('foo_val') AS t(foo1)) SELECT foo1 FROM t",
             "WITH t AS (SELECT * FROM VALUES ('foo_val') AS t(foo1)) SELECT foo1 FROM t",
         )
+        self.validate_identity("NTILE() OVER (ORDER BY 1)")
 
     # https://docs.databricks.com/sql/language-manual/functions/colonsign.html
     def test_json(self):
@@ -369,6 +371,14 @@ class TestDatabricks(Validator):
         self.validate_identity("GRANT ALL PRIVILEGES ON TABLE forecasts TO finance")
         self.validate_identity("GRANT SELECT ON TABLE t TO `fab9e00e-ca35-11ec-9d64-0242ac120002`")
 
+    def test_revoke(self):
+        self.validate_identity("REVOKE CREATE ON SCHEMA my_schema FROM `alf@melmak.et`")
+        self.validate_identity("REVOKE SELECT ON TABLE sample_data FROM `alf@melmak.et`")
+        self.validate_identity("REVOKE ALL PRIVILEGES ON TABLE forecasts FROM finance")
+        self.validate_identity(
+            "REVOKE SELECT ON TABLE t FROM `fab9e00e-ca35-11ec-9d64-0242ac120002`"
+        )
+
     def test_analyze(self):
         self.validate_identity("ANALYZE TABLE tbl COMPUTE DELTA STATISTICS NOSCAN")
         self.validate_identity("ANALYZE TABLE tbl COMPUTE DELTA STATISTICS FOR ALL COLUMNS")
@@ -385,3 +395,15 @@ class TestDatabricks(Validator):
         self.validate_identity(
             """CREATE FUNCTION a() ENVIRONMENT (dependencies = '["foo1==1", "foo2==2"]', environment_version = 'None')"""
         )
+
+    def test_to_char_is_numeric_transpile_to_cast(self):
+        # The input SQL simulates a TO_CHAR with is_numeric flag set (from dremio dialect)
+        sql = "SELECT TO_CHAR(12345, '#')"
+        expression = parse_one(sql, read="dremio")
+
+        to_char_exp = expression.find(exp.ToChar)
+        assert to_char_exp is not None
+        assert to_char_exp.args.get("is_numeric") is True
+
+        result = transpile(sql, read="dremio", write="databricks")[0]
+        assert "CAST(12345 AS STRING)" in result
