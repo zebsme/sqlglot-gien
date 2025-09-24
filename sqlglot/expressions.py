@@ -11717,7 +11717,6 @@ class ByteLength(Func):
 # https://cloud.google.com/bigquery/docs/reference/standard-sql/json_functions#bool_for_json
 class JSONBool(Func):
     pass
->>>>>>> upstream/main
 
 
 class ArrayRemove(Func):
@@ -14742,8 +14741,6 @@ class ParseBignumeric(Func):
 class ParseNumeric(Func):
     pass
 
-
->>>>>>> upstream/main
 class ParseJSON(Func):
     """将JSON字符串解析为JSON对象的函数"""
     # BigQuery和Snowflake使用PARSE_JSON，Presto使用JSON_PARSE

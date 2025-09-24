@@ -11113,4 +11113,3 @@ class Parser(metaclass=_Parser):
         separator = self._parse_field() if self._match(TokenType.SEPARATOR) else None
 
         return self.expression(exp.GroupConcat, this=this, separator=separator)
->>>>>>> upstream/main
