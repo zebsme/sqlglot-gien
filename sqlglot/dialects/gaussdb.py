@@ -42,7 +42,8 @@ class GaussDB(Postgres):  # 继承自 PostgreSQL 方言
             "SERVER": lambda self: self._parse_server_property(),
             "OPTIONS": lambda self: self._parse_option_properties(),
             "LOG INTO": lambda self: self.expression(exp.WithJournalTableProperty, this=self._parse_table_parts()),
-            "PER NODE REJECT LIMIT":lambda self: self.parse_kv_property(key="PER NODE REJECT LIMIT", quoted=True)
+            "PER NODE REJECT LIMIT":lambda self: self.parse_kv_property(key="PER NODE REJECT LIMIT", quoted=True),
+            "TO": lambda self: self._parse_to_group_or_node(),
         }
         
         # OPTIONS中各类参数的解析器
@@ -97,6 +98,7 @@ class GaussDB(Postgres):  # 继承自 PostgreSQL 方言
         ALTER_PARSERS = {
             **Postgres.Parser.ALTER_PARSERS,
             "ADD": lambda self: self._parse_alter_table_add(),
+            "TO": lambda self: self._parse_alter_table_to(),  # 新增TO解析器
         }
         
         FUNCTIONS = {
@@ -117,7 +119,7 @@ class GaussDB(Postgres):  # 继承自 PostgreSQL 方言
                 return self.expression(exp.Property, this=key, value=value)
             return self._parse_placeholder()
         
-        
+
         def _parse_option_properties(self) -> t.List[exp.Expression]:
             """解析OPTIONS形如 `(KEY1 "VALUE1", KEY2 "VALUE2", ...)` 的 *括号包裹* 属性列表。"""
             return self._parse_wrapped_csv(self._parse_option_property)
@@ -313,6 +315,67 @@ class GaussDB(Postgres):  # 继承自 PostgreSQL 方言
             
             return partition_by        
                    
+                   
+        def _parse_to_group_or_node(self) -> t.Optional[exp.Expression]:
+            """
+            Parse TO GROUP groupname or TO NODE (nodename [, ...]) syntax.
+            
+            Supports:
+            - TO GROUP groupname 
+            - TO NODE (nodename1, nodename2, ...)
+            """
+            if self._match_text_seq("GROUP"):
+                # Parse TO GROUP groupname
+                group_name = self._parse_id_var()
+                if group_name:
+                    return self.expression(exp.ToGroupProperty, this=group_name)
+            elif self._match_text_seq("NODE"):
+                # Parse TO NODE (nodename [, ...])
+                if self._match(TokenType.L_PAREN):
+                    node_names = self._parse_csv(self._parse_id_var)
+                    self._match(TokenType.R_PAREN)
+                    return self.expression(exp.ToNodeProperty, expressions=node_names)
+                else:
+                    # Single node without parentheses
+                    node_name = self._parse_id_var()
+                    if node_name:
+                        return self.expression(exp.ToNodeProperty, expressions=[node_name])
+            
+            return None                   
+
+        def _parse_alter_table_to(self) -> t.Optional[exp.Expression]:
+            """
+            解析ALTER TABLE TO GROUP/NODE语法。
+            
+            支持语法：
+            - ALTER TABLE table_name TO GROUP groupname
+            - ALTER TABLE table_name TO NODE (nodename [, ...])
+            - ALTER TABLE table_name TO NODE nodename  # 单节点简写
+            
+            Returns:
+                AlterToGroup或AlterToNode表达式，解析失败返回None
+            """
+            if self._match_text_seq("GROUP"):
+                # 解析 TO GROUP groupname
+                group_name = self._parse_id_var()
+                if group_name:
+                    return self.expression(exp.AlterToGroup, this=group_name)
+            elif self._match_text_seq("NODE"):
+                # 解析 TO NODE (nodename [, ...]) 或 TO NODE nodename
+                if self._match(TokenType.L_PAREN):
+                    # 括号包裹的多节点语法
+                    node_names = self._parse_csv(self._parse_id_var)
+                    self._match(TokenType.R_PAREN)
+                    return self.expression(exp.AlterToNode, expressions=node_names)
+                else:
+                    # 单节点简写语法
+                    node_name = self._parse_id_var()
+                    if node_name:
+                        return self.expression(exp.AlterToNode, expressions=[node_name])
+            
+            # 未匹配到GROUP或NODE关键字
+            self.raise_error("Expected GROUP or NODE after TO in ALTER TABLE statement")
+            return None
                 
     class Generator(Postgres.Generator):
         # 覆盖类型映射
@@ -324,6 +387,12 @@ class GaussDB(Postgres):  # 继承自 PostgreSQL 方言
             exp.DataType.Type.SMALLINT: "INT2",  # SMALLINT → INT2
             exp.DataType.Type.DOUBLE: "FLOAT8",  # DOUBLE → FLOAT8
             exp.DataType.Type.FLOAT: "FLOAT4",  # FLOAT → FLOAT4
+        }
+
+        TRANSFORMS = {
+            **Postgres.Generator.TRANSFORMS,
+            exp.AlterToGroup: lambda self, e: self.altertogroup_sql(e),
+            exp.AlterToNode: lambda self, e: self.altertonode_sql(e),
         }
 
         def datatype_sql(self, expression: exp.DataType) -> str:
@@ -348,3 +417,15 @@ class GaussDB(Postgres):  # 继承自 PostgreSQL 方言
             partition_by = self.sql(expression, "this")
             partition_list = self.expressions(expression, key="partition_list", flat=True)
             return f"PARTITION BY {partition_by} ({partition_list})"
+
+        def altertogroup_sql(self, expression: exp.AlterToGroup) -> str:
+            """生成ALTER TABLE TO GROUP的SQL"""
+            return f"TO GROUP {self.sql(expression, 'this')}"
+
+        def altertonode_sql(self, expression: exp.AlterToNode) -> str:
+            """生成ALTER TABLE TO NODE的SQL"""
+            nodes = self.expressions(expression, flat=True)
+            if len(expression.expressions) > 1:
+                return f"TO NODE ({nodes})"
+            else:
+                return f"TO NODE {nodes}"

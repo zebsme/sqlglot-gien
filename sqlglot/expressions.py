@@ -3382,6 +3382,27 @@ class AlterRename(Expression):
     """
     pass
 
+class AlterToGroup(Expression):
+    """
+    ALTER TABLE TO GROUP表达式类。
+    
+    表示ALTER TABLE table_name TO GROUP groupname语句，
+    用于将表重新分配到指定的节点组。
+    """
+    arg_types = {
+        "this": True,    # 目标组名（必需）
+    }
+
+class AlterToNode(Expression):
+    """
+    ALTER TABLE TO NODE表达式类。
+    
+    表示ALTER TABLE table_name TO NODE (nodename [, ...])语句，
+    用于将表重新分配到指定的节点。
+    """
+    arg_types = {
+        "expressions": True,  # 节点名列表（必需）
+    }
 
 class SwapTable(Expression):
     """
@@ -17605,3 +17626,11 @@ CONSTANTS = (
 class PartitionListProperty(Property):
     """表示分区列表属性"""
     arg_types = {"this": True, "partition_list": False}
+
+class ToGroupProperty(Property):
+    """Property for specifying table distribution to a specific node group"""
+    arg_types = {"this": True}
+
+class ToNodeProperty(Property):  
+    """Property for specifying table distribution to specific nodes"""
+    arg_types = {"this": True}
