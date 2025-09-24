@@ -35,7 +35,7 @@ class GaussDB(Postgres):  # 继承自 PostgreSQL 方言
             "DISTRIBUTE BY": lambda self: self._parse_distributed_property(),
             "LOCAL": lambda self: (self._match_text_seq("TEMPORARY") or self._match_text_seq("TEMP"))
             and self.expression(exp.TemporaryProperty, this="LOCAL"),
-            "PARTITION BY": lambda self: self._parse_partitioned_by_with_list(),
+            "PARTITION BY": lambda self: self._parse_partition_by_opt_range(), #_parse_partitioned_by_with_list
             "PARTITIONED BY": lambda self: self._parse_partitioned_by(),
             "PARTITIONED_BY": lambda self: self._parse_partitioned_by(),
             "FOREIGN": lambda self: self.expression(exp.ExternalProperty),
@@ -276,44 +276,44 @@ class GaussDB(Postgres):  # 继承自 PostgreSQL 方言
             )
             
             
-        def _parse_partition_list(self) -> t.List[exp.Expression]:
-            """解析分区列表，如 (PARTITION p1 VALUES ('val1'), PARTITION p2 VALUES ('val2'))"""
-            partitions = []
-            while True:
-                if not self._match(TokenType.PARTITION):
-                    break
+        # def _parse_partition_list(self) -> t.List[exp.Expression]:
+        #     """解析分区列表，如 (PARTITION p1 VALUES ('val1'), PARTITION p2 VALUES ('val2'))"""
+        #     partitions = []
+        #     while True:
+        #         if not self._match(TokenType.PARTITION):
+        #             break
                 
-                partition_name = self._parse_id_var()
+        #         partition_name = self._parse_id_var()
                 
-                if self._match_text_seq("VALUES"):
-                    self._match(TokenType.L_PAREN)
-                    values = self._parse_csv(self._parse_expression)
-                    self._match(TokenType.R_PAREN)
+        #         if self._match_text_seq("VALUES"):
+        #             self._match(TokenType.L_PAREN)
+        #             values = self._parse_csv(self._parse_expression)
+        #             self._match(TokenType.R_PAREN)
                     
-                    partitions.append(self.expression(
-                        exp.PartitionBoundSpec,
-                        this=values
-                    ))
+        #             partitions.append(self.expression(
+        #                 exp.PartitionBoundSpec,
+        #                 this=values
+        #             ))
                 
-                if not self._match(TokenType.COMMA):
-                    break
+        #         if not self._match(TokenType.COMMA):
+        #             break
             
-            return partitions
+        #     return partitions
 
-        def _parse_partitioned_by_with_list(self) -> exp.PartitionedByProperty:
-            """解析PARTITION BY语法，支持后续的分区列表"""
-            # 先解析PARTITION BY部分
-            partition_by = self._parse_partitioned_by()
+        # def _parse_partitioned_by_with_list(self) -> exp.PartitionedByProperty:
+        #     """解析PARTITION BY语法，支持后续的分区列表"""
+        #     # 先解析PARTITION BY部分
+        #     partition_by = self._parse_partitioned_by()
             
-            # 检查是否有后续的分区列表
-            if self._match(TokenType.L_PAREN):
-                partition_list = self._parse_partition_list()
-                self._match(TokenType.R_PAREN)
+        #     # 检查是否有后续的分区列表
+        #     if self._match(TokenType.L_PAREN):
+        #         partition_list = self._parse_partition_list()
+        #         self._match(TokenType.R_PAREN)
                 
-                # 将分区列表添加到属性中
-                partition_by.set("partition_list", partition_list)
+        #         # 将分区列表添加到属性中
+        #         partition_by.set("partition_list", partition_list)
             
-            return partition_by        
+        #     return partition_by        
                    
                    
         def _parse_to_group_or_node(self) -> t.Optional[exp.Expression]:
@@ -376,6 +376,84 @@ class GaussDB(Postgres):  # 继承自 PostgreSQL 方言
             # 未匹配到GROUP或NODE关键字
             self.raise_error("Expected GROUP or NODE after TO in ALTER TABLE statement")
             return None
+        
+        # 参考doris逻辑解析PARTITION BY RANGE/LIST的逻辑
+        def _parse_partitioning_granularity_dynamic(self) -> exp.PartitionByRangePropertyDynamic:
+            self._match_text_seq("START")
+            start = self._parse_wrapped(self._parse_expression)
+            self._match_text_seq("END")
+            end = self._parse_wrapped(self._parse_expression)
+            self._match_text_seq("EVERY")
+            every = self._parse_wrapped(self._parse_expression)
+            return self.expression(
+                exp.PartitionByRangePropertyDynamic, start=start, end=end, every=every
+            )
+
+        def _parse_partition_definition(self) -> exp.Partition:
+            self._match_text_seq("PARTITION")
+
+            name = self._parse_id_var()
+            self._match_text_seq("VALUES")
+
+            if self._match_text_seq("LESS", "THAN"):
+                values = self._parse_wrapped_csv(self._parse_expression)
+                if len(values) == 1 and values[0].name.upper() == "MAXVALUE":
+                    values = [exp.var("MAXVALUE")]
+
+                part_range = self.expression(exp.PartitionRange, this=name, expressions=values)
+                return self.expression(exp.Partition, expressions=[part_range])
+
+            self._match(TokenType.L_BRACKET)
+            values = self._parse_csv(lambda: self._parse_wrapped_csv(self._parse_expression))
+
+            self._match(TokenType.R_BRACKET)
+            self._match(TokenType.R_PAREN)
+
+            part_range = self.expression(exp.PartitionRange, this=name, expressions=values)
+            return self.expression(exp.Partition, expressions=[part_range])
+
+        def _parse_partition_definition_list(self) -> exp.Partition:
+            # PARTITION <name> VALUES IN (<value_csv>)
+            self._match_text_seq("PARTITION")
+            name = self._parse_id_var()
+            self._match_text_seq("VALUES")
+            values = self._parse_wrapped_csv(self._parse_expression)
+            part_list = self.expression(exp.PartitionList, this=name, expressions=values)
+            return self.expression(exp.Partition, expressions=[part_list])
+
+        def _parse_partition_by_opt_range(
+            self,
+        ) -> exp.PartitionedByProperty | exp.PartitionByRangeProperty | exp.PartitionByListProperty:
+            if self._match_text_seq("LIST"):
+                return self.expression(
+                    exp.PartitionByListProperty,
+                    partition_expressions=self._parse_wrapped_id_vars(),
+                    create_expressions=self._parse_wrapped_csv(
+                        self._parse_partition_definition_list
+                    ),
+                )
+
+            if not self._match_text_seq("RANGE"):
+                return super()._parse_partitioned_by()
+
+            partition_expressions = self._parse_wrapped_id_vars()
+            self._match_l_paren()
+
+            if self._match_text_seq("START", advance=False):
+                create_expressions = self._parse_csv(self._parse_partitioning_granularity_dynamic)
+            elif self._match_text_seq("PARTITION", advance=False):
+                create_expressions = self._parse_csv(self._parse_partition_definition)
+            else:
+                create_expressions = None
+
+            self._match_r_paren()
+
+            return self.expression(
+                exp.PartitionByRangeProperty,
+                partition_expressions=partition_expressions,
+                create_expressions=create_expressions,
+            )        
+
                 
     class Generator(Postgres.Generator):
         # 覆盖类型映射
