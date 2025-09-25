@@ -6,10 +6,6 @@ from sqlglot.tokens import Tokenizer, TokenType
 
 class TranswarpInceptor(MySQL):  # 继承自 MySQL 方言
     class Tokenizer(MySQL.Tokenizer):
-        # 保留 PostgreSQL 的原始标识符和引号规则
-        IDENTIFIERS = ['"']
-        QUOTES = ["'"]
-
         # 扩展关键字映射
         KEYWORDS = {
             **MySQL.Tokenizer.KEYWORDS,

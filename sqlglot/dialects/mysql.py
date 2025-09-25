@@ -422,6 +422,8 @@ class MySQL(Dialect):
         PROPERTY_PARSERS = {
             **parser.Parser.PROPERTY_PARSERS,
             "LOCK": lambda self: self._parse_property_assignment(exp.LockProperty),
+            "PARTITION BY": lambda self: self._parse_partition_by_opt_range(),
+            "SUBPARTITION BY": lambda self: self._parse_subpartition_by(),
         }
 
         SET_PARSERS = {
@@ -740,6 +742,308 @@ class MySQL(Dialect):
 
             return self.expression(exp.AlterIndex, this=index, visible=visible)
 
+        def _parse_partition_by_opt_range(
+            self,
+        ) -> exp.PartitionedByProperty | exp.PartitionByRangeProperty | exp.PartitionByListProperty:
+            """
+            Parse MySQL PARTITION BY syntax according to official MySQL documentation.
+            
+            MySQL supports:
+            - PARTITION BY [LINEAR] HASH(expr) [PARTITIONS num]
+            - PARTITION BY [LINEAR] KEY [ALGORITHM={1 | 2}] (column_list) [PARTITIONS num]
+            - PARTITION BY RANGE{(expr) | COLUMNS(column_list)} [PARTITIONS num] (partition_definition)
+            - PARTITION BY LIST{(expr) | COLUMNS(column_list)} [PARTITIONS num] (partition_definition)
+            """
+            # print(f"DEBUG: _parse_partition_by_opt_range called")
+            # Check for LINEAR keyword
+            linear = self._match_text_seq("LINEAR")
+            
+            if self._match_text_seq("HASH"):
+                # Parse HASH partition: PARTITION BY [LINEAR] HASH(expr) [PARTITIONS num]
+                partition_expressions = self._parse_wrapped_csv(self._parse_expression)
+                partitions_num = self._parse_partitions_num()
+                
+                # Create partition expression with basic attributes
+                partition_expr = self.expression(exp.Partition)
+                if partition_expressions:
+                    partition_expr.set("expressions", partition_expressions)
+                if linear:
+                    partition_expr.set("linear", True)
+                if partitions_num:
+                    partition_expr.set("partitions_num", partitions_num)
+                
+                result = self.expression(exp.PartitionedByProperty, this=partition_expr)
+                # print(f"DEBUG: Returning PartitionedByProperty: {result}")
+                return result
+            elif self._match_text_seq("KEY"):
+                # Parse KEY partition: PARTITION BY [LINEAR] KEY [ALGORITHM={1 | 2}] (column_list) [PARTITIONS num]
+                algorithm = None
+                if self._match_text_seq("ALGORITHM"):
+                    self._match(TokenType.EQ)
+                    algorithm = self._parse_number()
+                
+                partition_expressions = self._parse_wrapped_id_vars()
+                partitions_num = self._parse_partitions_num()
+                
+                # Create partition expression with basic attributes
+                partition_expr = self.expression(exp.Partition)
+                if partition_expressions:
+                    partition_expr.set("expressions", partition_expressions)
+                if linear:
+                    partition_expr.set("linear", True)
+                if algorithm:
+                    partition_expr.set("algorithm", algorithm)
+                if partitions_num:
+                    partition_expr.set("partitions_num", partitions_num)
+                
+                return self.expression(exp.PartitionedByProperty, this=partition_expr)
+            elif self._match_text_seq("RANGE"):
+                # Parse RANGE partition: PARTITION BY RANGE{(expr) | COLUMNS(column_list)} [PARTITIONS num] (partition_definition)
+                if self._match_text_seq("COLUMNS"):
+                    partition_expressions = self._parse_wrapped_id_vars()
+                    columns = True
+                else:
+                    partition_expressions = self._parse_wrapped_csv(self._parse_expression)
+                    columns = False
+                
+                partitions_num = self._parse_partitions_num()
+                create_expressions = self._parse_wrapped_csv(self._parse_partition_definition)
+                
+                return self.expression(
+                    exp.PartitionByRangeProperty,
+                    partition_expressions=partition_expressions,
+                    create_expressions=create_expressions,
+                    columns=columns,
+                    partitions_num=partitions_num,
+                )
+            elif self._match_text_seq("LIST"):
+                # Parse LIST partition: PARTITION BY LIST{(expr) | COLUMNS(column_list)} [PARTITIONS num] (partition_definition)
+                if self._match_text_seq("COLUMNS"):
+                    partition_expressions = self._parse_wrapped_id_vars()
+                    columns = True
+                else:
+                    partition_expressions = self._parse_wrapped_csv(self._parse_expression)
+                    columns = False
+                
+                partitions_num = self._parse_partitions_num()
+                create_expressions = self._parse_wrapped_csv(self._parse_partition_definition)
+                
+                return self.expression(
+                    exp.PartitionByListProperty,
+                    partition_expressions=partition_expressions,
+                    create_expressions=create_expressions,
+                    columns=columns,
+                    partitions_num=partitions_num,
+                )
+            else:
+                # Fall back to generic partition parsing
+                return super()._parse_partitioned_by()
+
+        def _parse_subpartition_by(self) -> t.Optional[exp.Expression]:
+            """Parse SUBPARTITION BY clause."""
+            if not self._match_text_seq("SUBPARTITION", "BY"):
+                return None
+            
+            # Check for LINEAR keyword
+            linear = self._match_text_seq("LINEAR")
+            
+            if self._match_text_seq("HASH"):
+                # Parse SUBPARTITION BY [LINEAR] HASH(expr) [SUBPARTITIONS num]
+                partition_expressions = self._parse_wrapped_csv(self._parse_expression)
+                subpartitions_num = self._parse_subpartitions_num()
+                return self.expression(
+                    exp.PartitionedByProperty,
+                    this=self.expression(
+                        exp.Partition, 
+                        expressions=partition_expressions,
+                        linear=linear,
+                        subpartitions_num=subpartitions_num,
+                        subpartition=True
+                    ),
+                )
+            elif self._match_text_seq("KEY"):
+                # Parse SUBPARTITION BY [LINEAR] KEY [ALGORITHM={1 | 2}] (column_list) [SUBPARTITIONS num]
+                algorithm = None
+                if self._match_text_seq("ALGORITHM"):
+                    self._match(TokenType.EQ)
+                    algorithm = self._parse_number()
+                
+                partition_expressions = self._parse_wrapped_id_vars()
+                subpartitions_num = self._parse_subpartitions_num()
+                return self.expression(
+                    exp.PartitionedByProperty,
+                    this=self.expression(
+                        exp.Partition, 
+                        expressions=partition_expressions,
+                        linear=linear,
+                        algorithm=algorithm,
+                        subpartitions_num=subpartitions_num,
+                        subpartition=True
+                    ),
+                )
+            
+            return None
+
+        def _parse_subpartitions_num(self) -> t.Optional[exp.Expression]:
+            """Parse SUBPARTITIONS num clause."""
+            if self._match_text_seq("SUBPARTITIONS"):
+                return self._parse_number()
+            return None
+
+        def _parse_partitions_num(self) -> t.Optional[exp.Expression]:
+            """Parse PARTITIONS num clause."""
+            if self._match_text_seq("PARTITIONS"):
+                return self._parse_number()
+            return None
+
+        def _parse_partition_definition(self) -> exp.Partition:
+            """
+            Parse individual partition definition according to MySQL documentation:
+            PARTITION partition_name
+                [VALUES {LESS THAN {(expr | value_list) | MAXVALUE} | IN (value_list)}]
+                [[STORAGE] ENGINE [=] engine_name]
+                [COMMENT [=] 'string' ]
+                [DATA DIRECTORY [=] 'data_dir']
+                [INDEX DIRECTORY [=] 'index_dir']
+                [MAX_ROWS [=] max_number_of_rows]
+                [MIN_ROWS [=] min_number_of_rows]
+                [TABLESPACE [=] tablespace_name]
+                [(subpartition_definition [, subpartition_definition] ...)]
+            """
+            self._match_text_seq("PARTITION")
+            name = self._parse_id_var()
+            
+            # Parse VALUES clause
+            values_clause = None
+            if self._match_text_seq("VALUES", "LESS", "THAN"):
+                if self._match_text_seq("MAXVALUE"):
+                    values_clause = exp.Literal.string("MAXVALUE")
+                else:
+                    values_clause = self._parse_wrapped_csv(self._parse_expression)
+            elif self._match_text_seq("VALUES", "IN"):
+                values_clause = self._parse_wrapped_csv(self._parse_expression)
+            
+            # Parse partition options
+            engine = None
+            comment = None
+            data_directory = None
+            index_directory = None
+            max_rows = None
+            min_rows = None
+            tablespace = None
+            subpartitions = []
+            
+            # Parse optional clauses
+            while True:
+                if self._match_text_seq("ENGINE") or self._match_text_seq("STORAGE", "ENGINE"):
+                    self._match(TokenType.EQ)
+                    engine = self._parse_string() or self._parse_id_var()
+                elif self._match_text_seq("COMMENT"):
+                    self._match(TokenType.EQ)
+                    comment = self._parse_string()
+                elif self._match_text_seq("DATA", "DIRECTORY"):
+                    self._match(TokenType.EQ)
+                    data_directory = self._parse_string()
+                elif self._match_text_seq("INDEX", "DIRECTORY"):
+                    self._match(TokenType.EQ)
+                    index_directory = self._parse_string()
+                elif self._match_text_seq("MAX_ROWS"):
+                    self._match(TokenType.EQ)
+                    max_rows = self._parse_number()
+                elif self._match_text_seq("MIN_ROWS"):
+                    self._match(TokenType.EQ)
+                    min_rows = self._parse_number()
+                elif self._match_text_seq("TABLESPACE"):
+                    self._match(TokenType.EQ)
+                    tablespace = self._parse_string() or self._parse_id_var()
+                elif self._match(TokenType.L_PAREN):
+                    # Parse subpartition definitions
+                    subpartitions = self._parse_csv(self._parse_subpartition_definition)
+                    self._match(TokenType.R_PAREN)
+                else:
+                    break
+            
+            # Create partition expression with all options
+            partition_expr = self.expression(exp.Partition, this=name)
+            if values_clause:
+                partition_expr.set("expressions", values_clause)
+            if engine:
+                partition_expr.set("engine", engine)
+            if comment:
+                partition_expr.set("comment", comment)
+            if data_directory:
+                partition_expr.set("data_directory", data_directory)
+            if index_directory:
+                partition_expr.set("index_directory", index_directory)
+            if max_rows:
+                partition_expr.set("max_rows", max_rows)
+            if min_rows:
+                partition_expr.set("min_rows", min_rows)
+            if tablespace:
+                partition_expr.set("tablespace", tablespace)
+            if subpartitions:
+                partition_expr.set("subpartitions", subpartitions)
+            
+            return partition_expr
+
+        def _parse_subpartition_definition(self) -> exp.Partition:
+            """Parse subpartition definition."""
+            self._match_text_seq("SUBPARTITION")
+            name = self._parse_id_var()
+            
+            # Parse subpartition options (similar to partition options)
+            engine = None
+            comment = None
+            data_directory = None
+            index_directory = None
+            max_rows = None
+            min_rows = None
+            tablespace = None
+            
+            while True:
+                if self._match_text_seq("ENGINE") or self._match_text_seq("STORAGE", "ENGINE"):
+                    self._match(TokenType.EQ)
+                    engine = self._parse_string() or self._parse_id_var()
+                elif self._match_text_seq("COMMENT"):
+                    self._match(TokenType.EQ)
+                    comment = self._parse_string()
+                elif self._match_text_seq("DATA", "DIRECTORY"):
+                    self._match(TokenType.EQ)
+                    data_directory = self._parse_string()
+                elif self._match_text_seq("INDEX", "DIRECTORY"):
+                    self._match(TokenType.EQ)
+                    index_directory = self._parse_string()
+                elif self._match_text_seq("MAX_ROWS"):
+                    self._match(TokenType.EQ)
+                    max_rows = self._parse_number()
+                elif self._match_text_seq("MIN_ROWS"):
+                    self._match(TokenType.EQ)
+                    min_rows = self._parse_number()
+                elif self._match_text_seq("TABLESPACE"):
+                    self._match(TokenType.EQ)
+                    tablespace = self._parse_string() or self._parse_id_var()
+                else:
+                    break
+            
+            subpartition_expr = self.expression(exp.Partition, this=name)
+            subpartition_expr.set("subpartition", True)
+            if engine:
+                subpartition_expr.set("engine", engine)
+            if comment:
+                subpartition_expr.set("comment", comment)
+            if data_directory:
+                subpartition_expr.set("data_directory", data_directory)
+            if index_directory:
+                subpartition_expr.set("index_directory", index_directory)
+            if max_rows:
+                subpartition_expr.set("max_rows", max_rows)
+            if min_rows:
+                subpartition_expr.set("min_rows", min_rows)
+            if tablespace:
+                subpartition_expr.set("tablespace", tablespace)
+            
+            return subpartition_expr
+
     class Generator(generator.Generator):
         INTERVAL_ALLOWS_PLURAL_FORM = False
         LOCKING_READS_SUPPORTED = True
@@ -870,6 +1174,9 @@ class MySQL(Dialect):
             **generator.Generator.PROPERTIES_LOCATION,
             exp.TransientProperty: exp.Properties.Location.UNSUPPORTED,
             exp.VolatileProperty: exp.Properties.Location.UNSUPPORTED,
+            exp.PartitionedByProperty: exp.Properties.Location.POST_SCHEMA,
+            exp.PartitionByRangeProperty: exp.Properties.Location.POST_SCHEMA,
+            exp.PartitionByListProperty: exp.Properties.Location.POST_SCHEMA,
         }
 
         LIMIT_FETCH = "LIMIT"
@@ -1327,3 +1634,154 @@ class MySQL(Dialect):
         @unsupported_args("this")
         def currentschema_sql(self, expression: exp.CurrentSchema) -> str:
             return self.func("SCHEMA")
+
+        def partitionedbyproperty_sql(self, expression: exp.PartitionedByProperty) -> str:
+            """
+            Generate MySQL PARTITION BY syntax for HASH and KEY partitions.
+            
+            Example: PARTITION BY LINEAR HASH (id) PARTITIONS 4
+            """
+            partition = expression.args.get("this")
+            if not partition:
+                return "PARTITION BY"
+            
+            partition_type = "HASH"  # Default
+            linear = partition.args.get("linear", False)
+            algorithm = partition.args.get("algorithm")
+            partitions_num = partition.args.get("partitions_num")
+            subpartitions_num = partition.args.get("subpartitions_num")
+            subpartition = partition.args.get("subpartition", False)
+            expressions = partition.args.get("expressions", [])
+            
+            # Determine partition type
+            if expressions:
+                # Check if it's KEY partition (no expressions in parentheses for HASH)
+                if all(isinstance(expr, exp.Identifier) for expr in expressions):
+                    partition_type = "KEY"
+                else:
+                    partition_type = "HASH"
+            
+            # Build LINEAR clause
+            linear_clause = "LINEAR " if linear else ""
+            
+            # Build ALGORITHM clause for KEY
+            algorithm_clause = ""
+            if partition_type == "KEY" and algorithm:
+                algorithm_clause = f" ALGORITHM={algorithm}"
+            
+            # Build PARTITIONS/SUBPARTITIONS clause
+            partitions_clause = ""
+            if subpartition and subpartitions_num:
+                partitions_clause = f" SUBPARTITIONS {subpartitions_num}"
+            elif partitions_num:
+                partitions_clause = f" PARTITIONS {partitions_num}"
+            
+            # Build expressions
+            expressions_sql = ""
+            if expressions:
+                if isinstance(expressions, list):
+                    # Convert list of expressions to comma-separated string
+                    expressions_sql = "(" + ", ".join([self.sql(expr) for expr in expressions]) + ")"
+                else:
+                    expressions_sql = self.sql(expressions)
+            else:
+                expressions_sql = "()"
+            
+            return f"PARTITION BY {linear_clause}{partition_type}{algorithm_clause} {expressions_sql}{partitions_clause}"
+
+        def partitionbyrangeproperty_sql(self, expression: exp.PartitionByRangeProperty) -> str:
+            """
+            Generate MySQL PARTITION BY RANGE syntax.
+            
+            Example: PARTITION BY RANGE (auth_type) (PARTITION p1 VALUES LESS THAN (100))
+            """
+            partition_expressions = self.expressions(expression, "partition_expressions")
+            create_expressions = self.expressions(expression, "create_expressions")
+            columns = expression.args.get("columns", False)
+            partitions_num = self.sql(expression, "partitions_num")
+            
+            range_type = "RANGE COLUMNS" if columns else "RANGE"
+            partitions_clause = f" PARTITIONS {partitions_num}" if partitions_num else ""
+            
+            return f"PARTITION BY {range_type} {self.wrap(partition_expressions)}{partitions_clause} {self.wrap(create_expressions)}"
+
+        def partitionbylistproperty_sql(self, expression: exp.PartitionByListProperty) -> str:
+            """
+            Generate MySQL PARTITION BY LIST syntax.
+            
+            Example: PARTITION BY LIST (status) (PARTITION p1 VALUES IN (1, 2, 3))
+            """
+            partition_expressions = self.expressions(expression, "partition_expressions")
+            create_expressions = self.expressions(expression, "create_expressions")
+            columns = expression.args.get("columns", False)
+            partitions_num = self.sql(expression, "partitions_num")
+            
+            list_type = "LIST COLUMNS" if columns else "LIST"
+            partitions_clause = f" PARTITIONS {partitions_num}" if partitions_num else ""
+            
+            return f"PARTITION BY {list_type} {self.wrap(partition_expressions)}{partitions_clause} {self.wrap(create_expressions)}"
+
+        def partitionrange_sql(self, expression: exp.PartitionRange) -> str:
+            """
+            Generate MySQL partition range syntax.
+            
+            Example: PARTITION p1 VALUES LESS THAN (100)
+            """
+            name = self.sql(expression, "this")
+            values = self.expressions(expression, "expressions")
+            if values:
+                return f"PARTITION {name} VALUES LESS THAN {self.wrap(values)}"
+            else:
+                return f"PARTITION {name}"
+
+        def partition_sql(self, expression: exp.Partition) -> str:
+            """
+            Generate MySQL partition syntax with all options.
+            
+            Example: PARTITION p1 VALUES IN (1, 2, 3) ENGINE InnoDB COMMENT 'test'
+            """
+            name = self.sql(expression, "this")
+            values = self.expressions(expression, "expressions")
+            engine = self.sql(expression, "engine")
+            comment = self.sql(expression, "comment")
+            data_directory = self.sql(expression, "data_directory")
+            index_directory = self.sql(expression, "index_directory")
+            max_rows = self.sql(expression, "max_rows")
+            min_rows = self.sql(expression, "min_rows")
+            tablespace = self.sql(expression, "tablespace")
+            subpartitions = self.expressions(expression, "subpartitions")
+            
+            # Build VALUES clause
+            values_clause = ""
+            if values:
+                if isinstance(values[0], exp.Literal) and values[0].this == "MAXVALUE":
+                    values_clause = " VALUES LESS THAN MAXVALUE"
+                else:
+                    values_clause = f" VALUES IN {self.wrap(values)}"
+            
+            # Build options
+            options = []
+            if engine:
+                options.append(f"ENGINE {engine}")
+            if comment:
+                options.append(f"COMMENT {comment}")
+            if data_directory:
+                options.append(f"DATA DIRECTORY {data_directory}")
+            if index_directory:
+                options.append(f"INDEX DIRECTORY {index_directory}")
+            if max_rows:
+                options.append(f"MAX_ROWS {max_rows}")
+            if min_rows:
+                options.append(f"MIN_ROWS {min_rows}")
+            if tablespace:
+                options.append(f"TABLESPACE {tablespace}")
+            
+            options_clause = " " + " ".join(options) if options else ""
+            
+            # Build subpartitions
+            subpartitions_clause = ""
+            if subpartitions:
+                subpartitions_sql = ", ".join([self.sql(subpart) for subpart in subpartitions])
+                subpartitions_clause = f" ({subpartitions_sql})"
+            
+            return f"PARTITION {name}{values_clause}{options_clause}{subpartitions_clause}"

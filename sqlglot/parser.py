@@ -2162,9 +2162,9 @@ class Parser(metaclass=_Parser):
         elif kind.token_type == TokenType.INDEX:
             # 为 INDEX 类型添加专门的处理逻辑，支持带 schema 的索引名
             if self.SUPPORT_INDEX_NAME_WITH_DOT:
-                index = self._parse_index_identifier()  # 解析索引名称
+                this = self._parse_index_identifier()  # 解析索引名称
             else:
-                index = self._parse_id_var()  # 解析索引名称
+                this = self._parse_id_var()  # 解析索引名称
         else:
             this = self._parse_id_var()
 
@@ -2488,12 +2488,17 @@ class Parser(metaclass=_Parser):
                 temp_props: 要合并的临时属性
             """
             nonlocal properties
+# DEBUG: extend_props called
+            # print(f"DEBUG: extend_props called with: {temp_props}")
+            # print(f"DEBUG: current properties: {properties}")
             if properties and temp_props:
                 # 如果已有属性，则扩展现有列表
                 properties.expressions.extend(temp_props.expressions)
+                # print(f"DEBUG: Extended existing properties")
             elif temp_props:
                 # 如果没有现有属性，则直接使用新属性
                 properties = temp_props
+                # print(f"DEBUG: Set new properties")
 
         # ======= 根据创建的对象类型进行不同的解析分支 =======
         
@@ -2660,6 +2665,7 @@ class Parser(metaclass=_Parser):
         
         # 构建并返回完整的CREATE表达式
         # 包含所有解析到的组件和选项
+        # print(f"DEBUG: Final properties before Create: {properties}")
         return self.expression(
             exp.Create,
             this=this,                    # 要创建的对象（表名、函数名等）
@@ -2792,6 +2798,7 @@ class Parser(metaclass=_Parser):
            若键后无 `=`，则回退为 *SEQUENCE* 属性解析。
         """
         if self._match_texts(self.PROPERTY_PARSERS):
+            # print(f"DEBUG: Matched property parser for: {self._prev.text.upper()}")
             return self.PROPERTY_PARSERS[self._prev.text.upper()](self)
 
         if self._match(TokenType.DEFAULT) and self._match_texts(self.PROPERTY_PARSERS):

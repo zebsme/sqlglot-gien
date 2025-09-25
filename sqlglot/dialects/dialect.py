@@ -118,7 +118,9 @@ class Dialects(str, Enum):
     TIDB = "tidb"
     INFORMIX = "informix"
     TRANSWARPARGODB = "transwarpargodb"
-    TRANSWARPINCEPTOR = "transwarpinceptor"    
+    TRANSWARPINCEPTOR = "transwarpinceptor"
+    HUDI_SPARK2 = "hudi_spark"
+    OCEANBASE_MySQL = "oceanbase_mysql"
     
     
     

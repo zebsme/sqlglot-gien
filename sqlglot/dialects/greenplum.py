@@ -13,6 +13,33 @@ class Greenplum(Postgres):  # 继承自 PostgreSQL 方言
         QUOTES = ["'"]
 
     class Parser(Postgres.Parser):
+        PROPERTY_PARSERS = {
+            **Postgres.Parser.PROPERTY_PARSERS,
+            "DISTRIBUTE BY": lambda self: self._parse_distributed_property(),
+        }
+
+        def _parse_distributed_property(self) -> exp.DistributedByProperty:
+            """
+            解析DISTRIBUTE BY HASH语法，支持Greenplum的分布语法。
+            """
+            kind = "HASH"
+            expressions: t.Optional[t.List[exp.Expression]] = None
+            
+            if self._match_text_seq("BY", "HASH"):
+                expressions = self._parse_wrapped_csv(self._parse_id_var)
+            elif self._match_text_seq("HASH"):
+                expressions = self._parse_wrapped_csv(self._parse_id_var)
+            elif self._match_text_seq("BY", "RANDOM"):
+                kind = "RANDOM"
+
+            return self.expression(
+                exp.DistributedByProperty,
+                expressions=expressions,
+                kind=kind,
+                buckets=None,
+                order=None,
+            )
+
         def _parse_types(
             self, check_func: bool = False, schema: bool = False, allow_identifiers: bool = True
         ) -> t.Optional[exp.Expression]:
@@ -50,6 +77,18 @@ class Greenplum(Postgres):  # 继承自 PostgreSQL 方言
             
             # 对于其他类型，使用父类的生成方法
             return super().datatype_sql(expression)
+
+        def distributedbyproperty_sql(self, expression: exp.DistributedByProperty) -> str:
+            """生成DISTRIBUTE BY HASH语法的SQL"""
+            kind = expression.args.get("kind", "HASH")
+            expressions = self.expressions(expression, flat=True)
+            
+            if kind == "HASH" and expressions:
+                return f"DISTRIBUTE BY HASH({expressions})"
+            elif kind == "RANDOM":
+                return "DISTRIBUTE BY RANDOM"
+            else:
+                return f"DISTRIBUTE BY {kind}({expressions})"
 
 
 

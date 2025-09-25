@@ -116,6 +116,8 @@ DIALECTS = [
     "Informix",
 	"TranswarpArgoDB",
     "TranswarpInceptor",
+    "Hudi_Spark",
+    "OceanBase_MySQL",
 ]
 
 MODULE_BY_DIALECT = {name: name.lower() for name in DIALECTS}

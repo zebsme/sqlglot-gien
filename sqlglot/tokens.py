@@ -431,6 +431,7 @@ class TokenType(AutoName):
     DISABLE = auto()
     NOVALIDATE = auto()
     DISTRIBUTED = auto()
+    DISTRIBUTED_BY = auto()
     VERSION_SNAPSHOT = auto()
     TIMESTAMP_SNAPSHOT = auto()
     OPTION = auto()
@@ -443,6 +444,31 @@ class TokenType(AutoName):
     EXTERNAL = auto()
     LOG_INTO = auto()
     REJECT_LIMIT = auto()
+    
+    # Oracle storage parameters
+    PCTFREE = auto()
+    PCTUSED = auto()
+    INITRANS = auto()
+    MAXTRANS = auto()
+    SEGMENT = auto()
+    CREATION = auto()
+    IMMEDIATE = auto()
+    DEFERRED = auto()
+    NOCOMPRESS = auto()
+    COMPRESS = auto()
+    LOGGING = auto()
+    NOLOGGING = auto()
+    FREELISTS = auto()
+    FREELIST = auto()
+    GROUPS = auto()
+    BUFFER_POOL = auto()
+    FLASH_CACHE = auto()
+    CELL_FLASH_CACHE = auto()
+    RECYCLE = auto()
+    NONE = auto()
+    COMPUTE = auto()
+    STATISTICS = auto()
+    TABLESPACE = auto()
 
     # sentinel
     HIVE_TOKEN_STREAM = auto()
@@ -825,6 +851,7 @@ class Tokenizer(metaclass=_Tokenizer):
         "PARTITION BY": TokenType.PARTITION_BY,
         "PARTITIONED BY": TokenType.PARTITION_BY,
         "PARTITIONED_BY": TokenType.PARTITION_BY,
+        "DISTRIBUTED BY": TokenType.DISTRIBUTED_BY,
         "PERCENT": TokenType.PERCENT,
         "PIVOT": TokenType.PIVOT,
         "PRAGMA": TokenType.PRAGMA,

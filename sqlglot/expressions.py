@@ -4625,8 +4625,21 @@ class Partition(Expression):
     分区是大型表的重要优化技术，提高查询性能和数据管理效率。
     """
     arg_types = {
-        "expressions": True,  # 分区表达式列表（分区列和值）
+        "this": False,         # 分区名称
+        "expressions": False,  # 分区表达式列表（分区列和值）
         "subpartition": False, # 子分区定义（某些数据库支持二级分区）
+        "linear": False,       # LINEAR关键字（MySQL）
+        "algorithm": False,    # ALGORITHM参数（MySQL KEY分区）
+        "partitions_num": False, # PARTITIONS num子句
+        "subpartitions_num": False, # SUBPARTITIONS num子句
+        "engine": False,       # 存储引擎
+        "comment": False,      # 注释
+        "data_directory": False, # 数据目录
+        "index_directory": False, # 索引目录
+        "max_rows": False,     # 最大行数
+        "min_rows": False,     # 最小行数
+        "tablespace": False,   # 表空间
+        "subpartitions": False, # 子分区列表
     }
 
 
@@ -5979,6 +5992,8 @@ class PartitionByRangeProperty(Property):
     arg_types = {
         "partition_expressions": True, # 分区表达式列表
         "create_expressions": True,    # 创建表达式列表
+        "columns": False,              # 是否使用COLUMNS语法
+        "partitions_num": False,       # 分区数量
     }
 
 
@@ -6527,6 +6542,146 @@ class ServerProperty(Property):
     服务器控制数据的物理存储位置。
     """
     # this: 服务器名称
+    arg_types = {"this": True}
+
+class SegmentCreationProperty(Property):
+    """
+    Oracle段创建属性类。
+    
+    表示Oracle数据库中的段创建时机配置。
+    控制段是立即创建还是延迟创建。
+    """
+    # this: 创建时机 (IMMEDIATE, DEFERRED)
+    arg_types = {"this": True}
+
+class PctFreeProperty(Property):
+    """
+    Oracle PCTFREE属性类。
+    
+    表示Oracle数据库中的PCTFREE参数。
+    控制数据块中保留用于更新的空闲空间百分比。
+    """
+    # this: PCTFREE值
+    arg_types = {"this": True}
+
+class PctUsedProperty(Property):
+    """
+    Oracle PCTUSED属性类。
+    
+    表示Oracle数据库中的PCTUSED参数。
+    控制数据块何时可以重新用于插入新行。
+    """
+    # this: PCTUSED值
+    arg_types = {"this": True}
+
+class InitTransProperty(Property):
+    """
+    Oracle INITRANS属性类。
+    
+    表示Oracle数据库中的INITRANS参数。
+    控制数据块中初始事务槽的数量。
+    """
+    # this: INITRANS值
+    arg_types = {"this": True}
+
+class MaxTransProperty(Property):
+    """
+    Oracle MAXTRANS属性类。
+    
+    表示Oracle数据库中的MAXTRANS参数。
+    控制数据块中最大事务槽的数量。
+    """
+    # this: MAXTRANS值
+    arg_types = {"this": True}
+
+class CompressProperty(Property):
+    """
+    Oracle压缩属性类。
+    
+    表示Oracle数据库中的压缩配置。
+    控制表数据的压缩方式。
+    """
+    # this: 压缩类型 (COMPRESS, NOCOMPRESS)
+    arg_types = {"this": True}
+
+class LoggingProperty(Property):
+    """
+    Oracle日志属性类。
+    
+    表示Oracle数据库中的日志配置。
+    控制是否记录重做日志。
+    """
+    # this: 日志类型 (LOGGING, NOLOGGING)
+    arg_types = {"this": True}
+
+class StorageProperty(Property):
+    """
+    Oracle存储属性类。
+    
+    表示Oracle数据库中的存储参数配置。
+    包含INITIAL、NEXT、MINEXTENTS、MAXEXTENTS等参数。
+    """
+    # this: 存储参数集合
+    arg_types = {"this": True}
+
+class FreelistsProperty(Property):
+    """
+    Oracle空闲列表属性类。
+    
+    表示Oracle数据库中的FREELISTS参数。
+    控制表的空闲列表数量。
+    """
+    # this: FREELISTS值
+    arg_types = {"this": True}
+
+class FreelistGroupsProperty(Property):
+    """
+    Oracle空闲列表组属性类。
+    
+    表示Oracle数据库中的FREELIST GROUPS参数。
+    控制表的空闲列表组数量。
+    """
+    # this: FREELIST GROUPS值
+    arg_types = {"this": True}
+
+class BufferPoolProperty(Property):
+    """
+    Oracle缓冲池属性类。
+    
+    表示Oracle数据库中的BUFFER_POOL参数。
+    控制表使用的缓冲池类型。
+    """
+    # this: 缓冲池类型 (DEFAULT, KEEP, RECYCLE)
+    arg_types = {"this": True}
+
+class FlashCacheProperty(Property):
+    """
+    Oracle闪存缓存属性类。
+    
+    表示Oracle数据库中的FLASH_CACHE参数。
+    控制表在闪存缓存中的行为。
+    """
+    # this: 闪存缓存类型 (DEFAULT, KEEP, NONE)
+    arg_types = {"this": True}
+
+class CellFlashCacheProperty(Property):
+    """
+    Oracle单元闪存缓存属性类。
+    
+    表示Oracle数据库中的CELL_FLASH_CACHE参数。
+    控制表在Exadata单元闪存缓存中的行为。
+    """
+    # this: 单元闪存缓存类型 (DEFAULT, KEEP, NONE)
+    arg_types = {"this": True}
+
+class ComputeStatisticsProperty(Property):
+    """
+    Oracle计算统计信息属性类。
+    
+    表示Oracle数据库中的COMPUTE STATISTICS参数。
+    控制是否在创建索引时计算统计信息。
+    """
+    # this: 统计信息计算选项
     arg_types = {"this": True}
 
 class Properties(Expression):
@@ -17605,3 +17760,18 @@ CONSTANTS = (
 class PartitionListProperty(Property):
     """表示分区列表属性"""
     arg_types = {"this": True, "partition_list": False}
+
+
+class PartitionByListProperty(Property):
+    """
+    MySQL LIST分区属性类。
+    
+    表示MySQL中的LIST分区配置，按照值列表对数据进行分区。
+    支持COLUMNS语法和完整的partition_definition。
+    """
+    arg_types = {
+        "partition_expressions": True,  # 分区表达式列表
+        "create_expressions": True,      # 创建表达式列表
+        "columns": False,                # 是否使用COLUMNS语法
+        "partitions_num": False,        # PARTITIONS num子句
+    }

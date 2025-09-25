@@ -118,11 +118,11 @@ class GaussDB(Postgres):  # 继承自 PostgreSQL 方言
             return self._parse_placeholder()
         
         
-        def _parse_option_properties(self) -> t.List[exp.Expression]:
+        def  _parse_option_properties(self) -> t.List[exp.Expression]:
             """解析OPTIONS形如 `(KEY1 "VALUE1", KEY2 "VALUE2", ...)` 的 *括号包裹* 属性列表。"""
             return self._parse_wrapped_csv(self._parse_option_property)
         
-        def _parse_option_property(self) -> t.Optional[exp.Expression]:
+        def      _parse_option_property(self) -> t.Optional[exp.Expression]:
             """
             OPTIONS的通用属性解析入口。
             只解释``OPTION_PARSERS`` 中的参数，直接调用对应解析器。

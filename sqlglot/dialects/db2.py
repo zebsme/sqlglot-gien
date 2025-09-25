@@ -1,9 +1,8 @@
 from __future__ import annotations
 
 import typing as t
-from sqlglot import exp, tokens
+from sqlglot import exp, tokens ,parser
 from sqlglot.dialects.athena import Athena
-from sqlglot.generator import Generator
 from sqlglot.tokens import Tokenizer, TokenType
 
 

@@ -141,6 +141,35 @@ class Hudi_Spark(Spark2):
             ),
         }
 
+        # Hudi 特定的属性解析器
+        PROPERTY_PARSERS = {
+            **Spark2.Parser.PROPERTY_PARSERS,
+            "OPTIONS": lambda self: self._parse_hudi_options(),
+            "TBLPROPERTIES": lambda self: self._parse_hudi_tblproperties(),
+        }
+
+        # Hudi OPTIONS 中支持的配置项
+        HUDI_OPTION_PARSERS = {
+            "TYPE": lambda self: self._parse_hudi_property_assignment("type"),
+            "PRIMARYKEY": lambda self: self._parse_hudi_property_assignment("primaryKey"),
+            "PRIMARY_KEY": lambda self: self._parse_hudi_property_assignment("primaryKey"),
+            "PRECOMBINEFIELD": lambda self: self._parse_hudi_property_assignment("preCombineField"),
+            "PRECOMBINE_FIELD": lambda self: self._parse_hudi_property_assignment("preCombineField"),
+            "HOODIE_INDEX_TYPE": lambda self: self._parse_hudi_property_assignment("hoodie.index.type"),
+            "HOODIE_BLOOM_INDEX_UPDATE_PARTITION_PATH": lambda self: self._parse_hudi_property_assignment("hoodie.bloom.index.update.partition.path"),
+            "HOODIE_BLOOM_INDEX_FILTER_TYPE": lambda self: self._parse_hudi_property_assignment("hoodie.bloom.index.filter.type"),
+            "HOODIE_BUCKET_INDEX_NUM_BUCKETS": lambda self: self._parse_hudi_property_assignment("hoodie.bucket.index.num.buckets"),
+            "HOODIE_BUCKET_INDEX_HASH_FIELD": lambda self: self._parse_hudi_property_assignment("hoodie.bucket.index.hash.field"),
+            "HOODIE_QUERY_AS_RO_TABLE": lambda self: self._parse_hudi_property_assignment("hoodie.query.as.ro.table"),
+            "HOODIE_DATASOURCE_WRITE_RECORDKEY_FIELD": lambda self: self._parse_hudi_property_assignment("hoodie.datasource.write.recordkey.field"),
+            "HOODIE_SCHEMA_EVOLUTION_ENABLE": lambda self: self._parse_hudi_property_assignment("hoodie.schema.evolution.enable"),
+            "HOODIE_WRITE_LOCK_ZOOKEEPER_BASE_PATH": lambda self: self._parse_hudi_property_assignment("hoodie.write.lock.zookeeper.base.path"),
+            "LAST_COMMIT_COMPLETION_TIME_SYNC": lambda self: self._parse_hudi_property_assignment("last_commit_completion_time_sync"),
+            "LAST_COMMIT_TIME_SYNC": lambda self: self._parse_hudi_property_assignment("last_commit_time_sync"),
+            "HOODIE_PARQUET_MAX_FILE_SIZE": lambda self: self._parse_hudi_property_assignment("hoodie.parquet.max.file.size"),
+            "HOODIE_TABLE_DESCRIPTION": lambda self: self._parse_hudi_property_assignment("hoodie.table.description"),
+        }
+
         PLACEHOLDER_PARSERS = {
             **Spark2.Parser.PLACEHOLDER_PARSERS,
             TokenType.L_BRACE: lambda self: self._parse_query_parameter(),
@@ -162,6 +191,73 @@ class Hudi_Spark(Spark2):
             if this.expression:
                 return self.expression(exp.ComputedColumnConstraint, this=this.expression)
             return this
+
+        def _parse_hudi_options(self) -> t.List[exp.Expression]:
+            """解析 Hudi OPTIONS 子句，格式为 OPTIONS (key1 = 'value1', key2 = 'value2', ...)"""
+            return self._parse_wrapped_csv(self._parse_hudi_option_property)
+
+        def _parse_hudi_tblproperties(self) -> t.List[exp.Expression]:
+            """解析 Hudi TBLPROPERTIES 子句，格式为 TBLPROPERTIES (key1 = 'value1', key2 = 'value2', ...)"""
+            return self._parse_wrapped_csv(self._parse_hudi_tblproperty)
+
+        def _parse_hudi_option_property(self) -> t.Optional[exp.Expression]:
+            """解析单个 Hudi OPTIONS 属性"""
+            if self._match_texts(self.HUDI_OPTION_PARSERS):
+                return self.HUDI_OPTION_PARSERS[self._prev.text.upper()](self)
+            
+            # 处理单引号包围的属性名，如 'hoodie.query.as.ro.table'
+            if self._match(TokenType.STRING):
+                key = self._prev.text
+                if self._match(TokenType.EQ):
+                    # 使用更通用的表达式解析，支持布尔值、字符串、数字等
+                    value = self._parse_bitwise() or self._parse_var(any_token=True)
+                    return self.expression(exp.Property, this=key, value=value)
+            
+            # 处理带点号的属性名，如 hoodie.index.type
+            # 检查各种可能的标识符类型，包括关键字
+            if self._match_set((TokenType.IDENTIFIER, TokenType.VAR, TokenType.INDEX, TokenType.UPDATE, TokenType.PARTITION, TokenType.SCHEMA, TokenType.ENABLE)):
+                key = self._prev.text
+                # 检查是否有更多的点号分隔的标识符
+                while self._match(TokenType.DOT) and self._match_set((TokenType.IDENTIFIER, TokenType.VAR, TokenType.INDEX, TokenType.UPDATE, TokenType.PARTITION, TokenType.SCHEMA, TokenType.ENABLE)):
+                    key += "." + self._prev.text
+                
+                if self._match(TokenType.EQ):
+                    # 使用更通用的表达式解析，支持布尔值、字符串、数字等
+                    value = self._parse_bitwise() or self._parse_var(any_token=True)
+                    return self.expression(exp.Property, this=key, value=value)
+            
+            # 如果没有匹配到任何属性，返回 None 让上层处理
+            return None
+
+        def _parse_hudi_tblproperty(self) -> t.Optional[exp.Expression]:
+            """解析单个 Hudi TBLPROPERTIES 属性"""
+            # 处理单引号包围的属性名，如 'hoodie.query.as.ro.table'
+            if self._match(TokenType.STRING):
+                key = self._prev.text
+                if self._match(TokenType.EQ):
+                    # 使用更通用的表达式解析，支持布尔值、字符串、数字等
+                    value = self._parse_bitwise() or self._parse_var(any_token=True)
+                    return self.expression(exp.Property, this=key, value=value)
+            
+            if self._match_set((TokenType.IDENTIFIER, TokenType.VAR, TokenType.INDEX, TokenType.UPDATE, TokenType.PARTITION, TokenType.SCHEMA, TokenType.ENABLE)):
+                key = self._prev.text
+                # 检查是否有更多的点号分隔的标识符
+                while self._match(TokenType.DOT) and self._match_set((TokenType.IDENTIFIER, TokenType.VAR, TokenType.INDEX, TokenType.UPDATE, TokenType.PARTITION, TokenType.SCHEMA, TokenType.ENABLE)):
+                    key += "." + self._prev.text
+                
+                if self._match(TokenType.EQ):
+                    # 使用更通用的表达式解析，支持布尔值、字符串、数字等
+                    value = self._parse_bitwise() or self._parse_var(any_token=True)
+                    return self.expression(exp.Property, this=key, value=value)
+            
+            return None
+
+        def _parse_hudi_property_assignment(self, key: str) -> exp.Property:
+            """解析 Hudi 属性赋值，格式为 key = value"""
+            if self._match(TokenType.EQ):
+                value = self._parse_expression()
+                return self.expression(exp.Property, this=key, value=value)
+            return self.expression(exp.Property, this=key)
 
     class Generator(Spark2.Generator):
         SUPPORTS_TO_NUMBER = True
@@ -239,3 +335,9 @@ class Hudi_Spark(Spark2):
                 return super().placeholder_sql(expression)
 
             return f"{{{expression.name}}}"
+
+        def property_sql(self, expression: exp.Property) -> str:
+            """生成属性赋值的 SQL，格式为 key = value"""
+            if expression.value:
+                return f"{expression.this} = {self.sql(expression, 'value')}"
+            return str(expression.this)
