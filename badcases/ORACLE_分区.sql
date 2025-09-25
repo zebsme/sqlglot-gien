@@ -1,0 +1,56 @@
+CREATE TABLE "ORACLE_TEST" (
+  "fieldName2" CHAR(256)  NOT NULL  PRIMARY KEY ,
+  "fieldName3" TIMESTAMP  NOT NULL ,
+  "fieldName4" DATE  NOT NULL ,
+  "fieldName5" NUMBER(10,2) NOT NULL ,
+  "fieldName6" FLOAT(256)  NOT NULL ,
+  "fieldName7" NUMBER(256,0) NOT NULL ,
+  "fieldName8" BLOB  NOT NULL ,
+  "fieldName9" VARCHAR2(256)  NOT NULL ,
+  "fieldName10" CLOB  NOT NULL ,
+  "fieldName11" DATE  NOT NULL ,
+  "fieldName12" NUMBER(8,2) NOT NULL ,
+  "fieldName13" NVARCHAR2(256)  NOT NULL ,
+  "fieldName14" NCHAR(256)  NOT NULL ,
+  "fieldName15" NCLOB  NOT NULL ,
+  "fieldName16" INT(0)  NOT NULL ,
+  "fieldName17" NUMBER(256,0) NOT NULL ,
+  "fieldName18" BLOB  NOT NULL ,
+  "fieldName19" NUMBER(256,0) NOT NULL ,
+  "fieldName20" NUMBER(256,0) NOT NULL ,
+  "fieldName21" DATE  NOT NULL ,
+  "fieldName22" VARCHAR2(256)  NOT NULL ,
+  "fieldName23" CLOB  NOT NULL ,
+  "fieldName24" DOUBLE PRECISION  NOT NULL ,
+  "fieldName25" VARCHAR2(256)  NOT NULL 
+)s
+PARTITION BY LIST ("fieldName6") (
+ PARTITION p1 VALUES (10)
+);
+COMMENT ON COLUMN "ORACLE_TEST"."fieldName2" IS 'fieldName2';
+COMMENT ON COLUMN "ORACLE_TEST"."fieldName3" IS 'fieldName3';
+COMMENT ON COLUMN "ORACLE_TEST"."fieldName4" IS 'fieldName4';
+COMMENT ON COLUMN "ORACLE_TEST"."fieldName5" IS 'fieldName5';
+COMMENT ON COLUMN "ORACLE_TEST"."fieldName6" IS 'fieldName6';
+COMMENT ON COLUMN "ORACLE_TEST"."fieldName7" IS 'fieldName7';
+COMMENT ON COLUMN "ORACLE_TEST"."fieldName8" IS 'fieldName8';
+COMMENT ON COLUMN "ORACLE_TEST"."fieldName9" IS 'fieldName9';
+COMMENT ON COLUMN "ORACLE_TEST"."fieldName10" IS 'fieldName10';
+COMMENT ON COLUMN "ORACLE_TEST"."fieldName11" IS 'fieldName11';
+COMMENT ON COLUMN "ORACLE_TEST"."fieldName12" IS 'fieldName12';
+COMMENT ON COLUMN "ORACLE_TEST"."fieldName13" IS 'fieldName13';
+COMMENT ON COLUMN "ORACLE_TEST"."fieldName14" IS 'fieldName14';
+COMMENT ON COLUMN "ORACLE_TEST"."fieldName15" IS 'fieldName15';
+COMMENT ON COLUMN "ORACLE_TEST"."fieldName16" IS 'fieldName16';
+COMMENT ON COLUMN "ORACLE_TEST"."fieldName17" IS 'fieldName17';
+COMMENT ON COLUMN "ORACLE_TEST"."fieldName18" IS 'fieldName18';
+COMMENT ON COLUMN "ORACLE_TEST"."fieldName19" IS 'fieldName19';
+COMMENT ON COLUMN "ORACLE_TEST"."fieldName20" IS 'fieldName20';
+COMMENT ON COLUMN "ORACLE_TEST"."fieldName21" IS 'fieldName21';
+COMMENT ON COLUMN "ORACLE_TEST"."fieldName22" IS 'fieldName22';
+COMMENT ON COLUMN "ORACLE_TEST"."fieldName23" IS 'fieldName23';
+COMMENT ON COLUMN "ORACLE_TEST"."fieldName24" IS 'fieldName24';
+COMMENT ON COLUMN "ORACLE_TEST"."fieldName25" IS 'fieldName25';
+COMMENT ON TABLE "ORACLE_TEST" IS '表';
+
+

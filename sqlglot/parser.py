@@ -1,13 +1,13 @@
 from __future__ import annotations
 
+import itertools
 import logging
 import re
 import typing as t
-import itertools
 from collections import defaultdict
 
 from sqlglot import exp
-from sqlglot.errors import ErrorLevel, ParseError, concat_messages, merge_errors
+from sqlglot.errors import ErrorLevel, ParseError, TokenError, concat_messages, merge_errors
 from sqlglot.helper import apply_index_offset, ensure_list, seq_get
 from sqlglot.time import format_time
 from sqlglot.tokens import Token, Tokenizer, TokenType
@@ -698,6 +698,7 @@ class Parser(metaclass=_Parser):
         TokenType.INDEX,
         TokenType.TABLE,
         TokenType.VIEW,
+        TokenType.SESSION,
     }
 
     # Tokens that can represent identifiers
@@ -749,6 +750,7 @@ class Parser(metaclass=_Parser):
         TokenType.LEFT,
         TokenType.LIMIT,
         TokenType.LOAD,
+        TokenType.LOCK,
         TokenType.MERGE,
         TokenType.NATURAL,
         TokenType.NEXT,
@@ -787,6 +789,7 @@ class Parser(metaclass=_Parser):
         TokenType.USE,
         TokenType.VOLATILE,
         TokenType.WINDOW,
+        *ALTERABLES,
         *CREATABLES,
         *SUBQUERY_PREDICATES,
         *TYPE_TOKENS,
@@ -796,7 +799,6 @@ class Parser(metaclass=_Parser):
 
     TABLE_ALIAS_TOKENS = ID_VAR_TOKENS - {
         TokenType.ANTI,
-        TokenType.APPLY,
         TokenType.ASOF,
         TokenType.FULL,
         TokenType.LEFT,
@@ -861,6 +863,9 @@ class Parser(metaclass=_Parser):
         TokenType.TIMESTAMP,
         TokenType.TIMESTAMPTZ,
         TokenType.TRUNCATE,
+        TokenType.UTC_DATE,
+        TokenType.UTC_TIME,
+        TokenType.UTC_TIMESTAMP,
         TokenType.WINDOW,
         TokenType.XOR,
         *TYPE_TOKENS,
@@ -1064,6 +1069,7 @@ class Parser(metaclass=_Parser):
         TokenType.DESCRIBE: lambda self: self._parse_describe(),
         TokenType.DROP: lambda self: self._parse_drop(),
         TokenType.GRANT: lambda self: self._parse_grant(),
+        TokenType.REVOKE: lambda self: self._parse_revoke(),
         TokenType.INSERT: lambda self: self._parse_insert(),
         TokenType.KILL: lambda self: self._parse_kill(),
         TokenType.LOAD: lambda self: self._parse_load(),
@@ -1156,6 +1162,9 @@ class Parser(metaclass=_Parser):
         TokenType.RLIKE: binary_range_parser(exp.RegexpLike),
         TokenType.SIMILAR_TO: binary_range_parser(exp.SimilarTo),
         TokenType.FOR: lambda self, this: self._parse_comprehension(this),
+        TokenType.QMARK_AMP: binary_range_parser(exp.JSONBContainsAllTopKeys),
+        TokenType.QMARK_PIPE: binary_range_parser(exp.JSONBContainsAnyTopKeys),
+        TokenType.HASH_DASH: binary_range_parser(exp.JSONBDeleteAtPath),
     }
 
     PIPE_SYNTAX_TRANSFORM_PARSERS = {
@@ -1467,7 +1476,6 @@ class Parser(metaclass=_Parser):
         "OPENJSON": lambda self: self._parse_open_json(),
         "OVERLAY": lambda self: self._parse_overlay(),
         "POSITION": lambda self: self._parse_position(),
-        "PREDICT": lambda self: self._parse_predict(),
         "SAFE_CAST": lambda self: self._parse_cast(False, safe=True),
         "STRING_AGG": lambda self: self._parse_string_agg(),
         "SUBSTRING": lambda self: self._parse_substring(),
@@ -1642,8 +1650,6 @@ class Parser(metaclass=_Parser):
 
     DISTINCT_TOKENS = {TokenType.DISTINCT}
 
-    NULL_TOKENS = {TokenType.NULL}
-
     UNNEST_OFFSET_ALIAS_TOKENS = TABLE_ALIAS_TOKENS - SET_OPERATIONS
 
     SELECT_START_TOKENS = {TokenType.L_PAREN, TokenType.WITH, TokenType.SELECT}
@@ -1778,6 +1784,14 @@ class Parser(metaclass=_Parser):
     
     # 索引名称中是否允许出现.
     SUPPORT_INDEX_NAME_WITH_DOT = False
+
+    # Dialects like Databricks support JOINS without join criteria
+    # Adding an ON TRUE, makes transpilation semantically correct for other dialects
+    ADD_JOIN_ON_TRUE = False
+
+    # Whether INTERVAL spans with literal format '\d+ hh:[mm:[ss[.ff]]]'
+    # can omit the span unit `DAY TO MINUTE` or `DAY TO SECOND`
+    SUPPORTS_OMITTED_INTERVAL_SPAN_UNIT = False
 
     __slots__ = (
         "error_level",
@@ -2594,7 +2608,24 @@ class Parser(metaclass=_Parser):
                 # 序列需要数据类型定义
                 # 例如：CREATE SEQUENCE seq_name AS INTEGER
                 expression = self._parse_types()
-                extend_props(self._parse_properties())
+                props = self._parse_properties()
+                if props:
+                    sequence_props = exp.SequenceProperties()
+                    options = []
+                    for prop in props:
+                        if isinstance(prop, exp.SequenceProperties):
+                            for arg, value in prop.args.items():
+                                if arg == "options":
+                                    options.extend(value)
+                                else:
+                                    sequence_props.set(arg, value)
+                            prop.pop()
+
+                    if options:
+                        sequence_props.set("options", options)
+
+                    props.append("expressions", sequence_props)
+                    extend_props(props)
             else:
                 # 解析DDL SELECT语句（主要用于CREATE TABLE AS SELECT）
                 # 例如：CREATE TABLE new_table AS SELECT * FROM old_table
@@ -2819,11 +2850,17 @@ class Parser(metaclass=_Parser):
             return self.expression(exp.TableReadWriteProperty, this="READ WRITE")
         
         index = self._index
+
+        seq_props = self._parse_sequence_properties()
+        if seq_props:
+            return seq_props
+
+        self._retreat(index)
         key = self._parse_column()
 
         if not self._match(TokenType.EQ):
             self._retreat(index)
-            return self._parse_sequence_properties()
+            return None
 
         # Transform the key to exp.Dot if it's dotted identifiers wrapped in exp.Column or to exp.Var otherwise
         if isinstance(key, exp.Column):
@@ -4130,10 +4167,10 @@ class Parser(metaclass=_Parser):
             # duckdb 的 FROM-first 语法：允许形如 (FROM t SELECT ...)
             from_ = self._parse_from(skip_from_token=True, consume_pipe=True)
             # Support parentheses for duckdb FROM-first syntax
-            select = self._parse_select()
+            select = self._parse_select(from_=from_)
             if select:
-                # 若成功解析出 SELECT，则将前面的 FROM 注入到 SELECT 中
-                select.set("from", from_)
+                if not select.args.get("from"):
+                    select.set("from", from_)
                 this = select
             else:
                 # 否则退化为 SELECT * FROM <from_>
@@ -4164,6 +4201,7 @@ class Parser(metaclass=_Parser):
         parse_subquery_alias: bool = True,
         parse_set_operation: bool = True,
         consume_pipe: bool = True,
+        from_: t.Optional[exp.From] = None,
     ) -> t.Optional[exp.Expression]:
         # 解析 SELECT 入口：根据上下文（nested/table）与标志位控制别名解析、集合操作、管道语法等
         query = self._parse_select_query(
@@ -4174,14 +4212,12 @@ class Parser(metaclass=_Parser):
         )
 
         # ClickHouse/duckdb 等的管道语法：|> 后可接进一步操作
-        if (
-            consume_pipe
-            and self._match(TokenType.PIPE_GT, advance=False)
-            and isinstance(query, exp.Query)
-        ):
-            query = self._parse_pipe_syntax_query(query)
-            # 在 table 上下文中将结果转为子查询，以便参与上层 FROM/JOIN
-            query = query.subquery(copy=False) if query and table else query
+        if consume_pipe and self._match(TokenType.PIPE_GT, advance=False):
+            if not query and from_:
+                query = exp.select("*").from_(from_)
+            if isinstance(query, exp.Query):
+                query = self._parse_pipe_syntax_query(query)
+                query = query.subquery(copy=False) if query and table else query
 
         return query
 
@@ -4502,10 +4538,17 @@ class Parser(metaclass=_Parser):
             while True:
                 # 若当前位置匹配到某种查询修饰符，则调用对应解析器
                 if self._match_set(self.QUERY_MODIFIER_PARSERS, advance=False):
-                    parser = self.QUERY_MODIFIER_PARSERS[self._curr.token_type]
+                    modifier_token = self._curr
+                    parser = self.QUERY_MODIFIER_PARSERS[modifier_token.token_type]
                     key, expression = parser(self)
 
                     if expression:
+                        if this.args.get(key):
+                            self.raise_error(
+                                f"Found multiple '{modifier_token.text.upper()}' clauses",
+                                token=modifier_token,
+                            )
+
                         this.set(key, expression)
                         # 特殊处理 LIMIT：统一 AST 表达，抽出其中的 offset 以及 "BY" 等扩展字段
                         if key == "limit":
@@ -4916,6 +4959,16 @@ class Parser(metaclass=_Parser):
         # 合并 join 关键字与修饰上的注释，便于后续生成保留这些信息
         comments = [c for token in (method, side, kind) if token for c in token.comments]
         comments = (join_comments or []) + comments
+
+        if (
+            self.ADD_JOIN_ON_TRUE
+            and not kwargs.get("on")
+            and not kwargs.get("using")
+            and not kwargs.get("method")
+            and kwargs.get("kind") in (None, "INNER", "OUTER")
+        ):
+            kwargs["on"] = exp.true()
+
         return self.expression(exp.Join, comments=comments, **kwargs)
 
     def _parse_opclass(self) -> t.Optional[exp.Expression]:
@@ -5554,6 +5607,8 @@ class Parser(metaclass=_Parser):
         # 解析 PIVOT 的聚合函数，并允许为其取别名作为列名
         func = self._parse_function()
         if not func:
+            if self._prev and self._prev.token_type == TokenType.COMMA:
+                return None
             self.raise_error("Expecting an aggregation function in PIVOT")
 
         return self._parse_alias(func)
@@ -5762,7 +5817,7 @@ class Parser(metaclass=_Parser):
         # - (a, b) 作为一个 Tuple 分组
         # - 单列时直接解析为列表达式
         if self._match(TokenType.L_PAREN):
-            grouping_set = self._parse_csv(self._parse_column)
+            grouping_set = self._parse_csv(self._parse_bitwise)
             self._match_r_paren()
             return self.expression(exp.Tuple, expressions=grouping_set)
 
@@ -6316,15 +6371,43 @@ class Parser(metaclass=_Parser):
             isinstance(this, exp.Column)
             and not this.table
             and not this.this.quoted
-            and this.name.upper() == "IS"
+            and this.name.upper() in ("IS", "ROWS")
         ):
             self._retreat(index)
             return None
 
         # 单位解析：优先尝试函数（如 HOUR()），否则在未出现别名的情况下，读取一个变量作为单位（如 DAY）
-        unit = self._parse_function() or (
-            not self._match(TokenType.ALIAS, advance=False)
-            and self._parse_var(any_token=True, upper=True)
+        # handle day-time format interval span with omitted units:
+        #   INTERVAL '<number days> hh[:][mm[:ss[.ff]]]' <maybe `unit TO unit`>
+        interval_span_units_omitted = None
+        if (
+            this
+            and this.is_string
+            and self.SUPPORTS_OMITTED_INTERVAL_SPAN_UNIT
+            and exp.INTERVAL_DAY_TIME_RE.match(this.name)
+        ):
+            index = self._index
+
+            # Var "TO" Var
+            first_unit = self._parse_var(any_token=True, upper=True)
+            second_unit = None
+            if first_unit and self._match_text_seq("TO"):
+                second_unit = self._parse_var(any_token=True, upper=True)
+
+            interval_span_units_omitted = not (first_unit and second_unit)
+
+            self._retreat(index)
+
+        unit = (
+            None
+            if interval_span_units_omitted
+            else (
+                self._parse_function()
+                or (
+                    not self._match(TokenType.ALIAS, advance=False)
+                    and self._parse_var(any_token=True, upper=True)
+                )
+            )
         )
 
         # 规范化：将 INTERVAL 5 DAY 归一为 INTERVAL '5' DAY；便于跨方言生成
@@ -6342,6 +6425,7 @@ class Parser(metaclass=_Parser):
                 # 拆分 '5 day' → '5' 与 DAY 两部分
                 this = exp.Literal.string(parts[0][0])
                 unit = self.expression(exp.Var, this=parts[0][1].upper())
+
         # 支持复合跨度：INTERVAL '1' YEAR TO MONTH 等
         if self.INTERVAL_SPANS and self._match_text_seq("TO"):
             unit = self.expression(
@@ -6574,18 +6658,21 @@ class Parser(metaclass=_Parser):
         # - 单 token 的标识符若能再次被词法器识别为类型，就等价于类型关键字
         # - 若方言支持 UDT，尝试解析用户自定义类型
         # - 否则回退并放弃类型解析
-        if not self._match_set(self.TYPE_TOKENS):
+        if self._match_set(self.TYPE_TOKENS):
+            type_token = self._prev.token_type
+        else:
+            type_token = None
             identifier = allow_identifiers and self._parse_id_var(
                 any_token=False, tokens=(TokenType.VAR,)
             )
             if isinstance(identifier, exp.Identifier):
-                tokens = self.dialect.tokenize(identifier.sql(dialect=self.dialect))
+                try:
+                    tokens = self.dialect.tokenize(identifier.name)
+                except TokenError:
+                    tokens = None
 
-                if len(tokens) != 1:
-                    self.raise_error("Unexpected identifier", self._prev)
-
-                if tokens[0].token_type in self.TYPE_TOKENS:
-                    self._prev = tokens[0]
+                if tokens and len(tokens) == 1 and tokens[0].token_type in self.TYPE_TOKENS:
+                    type_token = tokens[0].token_type
                 elif self.dialect.SUPPORTS_USER_DEFINED_TYPES:
                     this = self._parse_user_defined_type(identifier)
                 else:
@@ -6593,8 +6680,6 @@ class Parser(metaclass=_Parser):
                     return None
             else:
                 return None
-
-        type_token = self._prev.token_type
 
         if type_token == TokenType.PSEUDO_TYPE:
             return self.expression(exp.PseudoType, this=self._prev.text.upper())
@@ -6677,10 +6762,10 @@ class Parser(metaclass=_Parser):
                 # Snowflake VECTOR 可能传形如 VECTOR(FLOAT, 3)，需将第一个参数提升为 DataType
                 # https://docs.snowflake.com/en/sql-reference/data-types-vector
                 if type_token == TokenType.VECTOR and len(expressions) == 2:
-                    expressions[0] = exp.DataType.build(expressions[0].name, dialect=self.dialect)
+                    expressions = self._parse_vector_expressions(expressions)
 
             # 括号必须闭合；否则整体回退
-            if not expressions or not self._match(TokenType.R_PAREN):
+            if not self._match(TokenType.R_PAREN):
                 self._retreat(index)
                 return None
 
@@ -6765,6 +6850,10 @@ class Parser(metaclass=_Parser):
                 type_token = unsigned_type_token or type_token
 
             # 构造最终 DataType，并记录是否为嵌套类型及前缀（如 SYSUDTLIB.）
+            # NULLABLE without parentheses can be a column (Presto/Trino)
+            if type_token == TokenType.NULLABLE and not expressions:
+                self._retreat(index)
+                return None
             this = exp.DataType(
                 this=exp.DataType.Type[type_token.value],
                 expressions=expressions,
@@ -6826,6 +6915,11 @@ class Parser(metaclass=_Parser):
                 this = converter(t.cast(exp.DataType, this))
 
         return this
+
+    def _parse_vector_expressions(
+        self, expressions: t.List[exp.Expression]
+    ) -> t.List[exp.Expression]:
+        return [exp.DataType.build(expressions[0].name, dialect=self.dialect), *expressions[1:]]
 
     def _parse_struct_types(self, type_required: bool = False) -> t.Optional[exp.Expression]:
         index = self._index
@@ -6994,7 +7088,7 @@ class Parser(metaclass=_Parser):
                     self.raise_error("Expected type")
             elif op and self._curr:
                 # 对常规列操作，优先解析为“列引用”或括号表达式
-                field = self._parse_column_reference() or self._parse_bracket()
+                field = self._parse_column_reference() or self._parse_bitwise()
                 if isinstance(field, exp.Column) and self._match(TokenType.DOT, advance=False):
                     # 若后面紧跟点号，说明是链式访问，如 a.b.c；递归继续解析
                     field = self._parse_column_ops(field)
@@ -7083,7 +7177,11 @@ class Parser(metaclass=_Parser):
             # 将进入括号前采集到的注释补回当前节点，保证注释位置语义不丢失
             this.add_comments(comments)
 
-        self._match_r_paren(expression=this)  # 消耗右括号并进行必要的一致性检查
+        self._match_r_paren(expression=this)
+
+        if isinstance(this, exp.Paren) and isinstance(this.this, exp.AggFunc):
+            return self._parse_window(this)
+
         return this
 
     def _parse_primary(self) -> t.Optional[exp.Expression]:
@@ -7180,6 +7278,9 @@ class Parser(metaclass=_Parser):
 
         return func
 
+    def _parse_function_args(self, alias: bool = False) -> t.List[exp.Expression]:
+        return self._parse_csv(lambda: self._parse_lambda(alias=alias))
+
     def _parse_function_call(
         self,
         functions: t.Optional[t.Dict[str, t.Callable]] = None,
@@ -7263,7 +7364,7 @@ class Parser(metaclass=_Parser):
 
             # 未知函数或需要命名参数的函数：以 KV 形式解析参数，稍后可能转为属性等价表达
             alias = not known_function or upper in self.FUNCTIONS_WITH_ALIASED_ARGS
-            args = self._parse_csv(lambda: self._parse_lambda(alias=alias))
+            args = self._parse_function_args(alias)
 
             post_func_comments = self._curr and self._curr.comments
             if known_function and post_func_comments:
@@ -7537,6 +7638,9 @@ class Parser(metaclass=_Parser):
             constraint_kind = exp.ComputedColumnConstraint(
                 this=self._parse_assignment(),
                 persisted=persisted or self._match_text_seq("PERSISTED"),
+                data_type=exp.Var(this="AUTO")
+                if self._match_text_seq("AUTO")
+                else self._parse_types(),
                 not_null=self._match_pair(TokenType.NOT, TokenType.NULL),
             )
             constraints.append(self.expression(exp.ColumnConstraint, kind=constraint_kind))
@@ -8092,6 +8196,10 @@ class Parser(metaclass=_Parser):
         - 严格要求 `END` 结尾：特殊处理 `ELSE INTERVAL END` 被误读为 Interval 的边缘情况；
         - 返回 `exp.Case`，携带注释、基准表达式、条件分支与默认值。
         """
+        if self._match(TokenType.DOT, advance=False):
+            # Avoid raising on valid expressions like case.*, supported by, e.g., spark & snowflake
+            self._retreat(self._index - 1)
+            return None
         ifs = []
         default = None
 
@@ -8578,6 +8686,15 @@ class Parser(metaclass=_Parser):
     def _parse_match_against(self) -> exp.MatchAgainst:
         """解析 MySQL 风格 `MATCH(col1, col2) AGAINST('query' <modifier>)`。"""
         expressions = self._parse_csv(self._parse_column)
+        if self._match_text_seq("TABLE"):
+            # parse SingleStore MATCH(TABLE ...) syntax
+            # https://docs.singlestore.com/cloud/reference/sql-reference/full-text-search-functions/match/
+            expressions = []
+            table = self._parse_table()
+            if table:
+                expressions = [table]
+        else:
+            expressions = self._parse_csv(self._parse_column)
 
         self._match_text_seq(")", "AGAINST", "(")
 
@@ -8670,18 +8787,27 @@ class Parser(metaclass=_Parser):
     def _parse_substring(self) -> exp.Substring:
         """解析 SUBSTRING，兼容 Postgres 形态：substring(string [from int] [for int])。"""
         # Postgres supports the form: substring(string [from int] [for int])
+        # (despite being undocumented, the reverse order also works)
         # https://www.postgresql.org/docs/9.1/functions-string.html @ Table 9-6
 
         args = t.cast(t.List[t.Optional[exp.Expression]], self._parse_csv(self._parse_bitwise))
 
-        if self._match(TokenType.FROM):
-            # 匹配 FROM 起始位置参数
-            args.append(self._parse_bitwise())
-        if self._match(TokenType.FOR):
-            # FOR 长度参数；若仅有一个参数（原字符串），按规范补一个起始位 1
-            if len(args) == 1:
-                args.append(exp.Literal.number(1))
-            args.append(self._parse_bitwise())
+        start, length = None, None
+
+        while self._curr:
+            if self._match(TokenType.FROM):
+                start = self._parse_bitwise()
+            elif self._match(TokenType.FOR):
+                if not start:
+                    start = exp.Literal.number(1)
+                length = self._parse_bitwise()
+            else:
+                break
+
+        if start:
+            args.append(start)
+        if length:
+            args.append(length)
 
         return self.validate_expression(exp.Substring.from_arg_list(args), args)
 
@@ -8831,8 +8957,8 @@ class Parser(metaclass=_Parser):
         if kind:
             self._match(TokenType.BETWEEN)
             start = self._parse_window_spec()
-            self._match(TokenType.AND)
-            end = self._parse_window_spec()
+
+            end = self._parse_window_spec() if self._match(TokenType.AND) else {}
             exclude = (
                 self._parse_var_from_options(self.WINDOW_EXCLUDE_OPTIONS)
                 if self._match_text_seq("EXCLUDE")
@@ -8844,8 +8970,8 @@ class Parser(metaclass=_Parser):
                 kind=kind,
                 start=start["value"],
                 start_side=start["side"],
-                end=end["value"],
-                end_side=end["side"],
+                end=end.get("value"),
+                end_side=end.get("side"),
                 exclude=exclude,
             )
         else:
@@ -8885,7 +9011,7 @@ class Parser(metaclass=_Parser):
             "value": (
                 (self._match_text_seq("UNBOUNDED") and "UNBOUNDED")
                 or (self._match_text_seq("CURRENT", "ROW") and "CURRENT ROW")
-                or self._parse_bitwise()
+                or self._parse_type()
             ),
             # 方向：PRECEDING/FOLLOWING，若未匹配则为 None
             "side": self._match_texts(self.WINDOW_SIDES) and self._prev.text,
@@ -9019,8 +9145,10 @@ class Parser(metaclass=_Parser):
         return self._parse_primary() or self._parse_var(any_token=True)
 
     def _parse_null(self) -> t.Optional[exp.Expression]:
+
         """解析 NULL 字面量：按注册解析器处理，否则回退占位符。"""
-        if self._match_set(self.NULL_TOKENS):
+
+        if self._match_set((TokenType.NULL, TokenType.UNKNOWN)):
             return self.PRIMARY_PARSERS[TokenType.NULL](self, self._prev)
         return self._parse_placeholder()
 
@@ -9059,7 +9187,7 @@ class Parser(metaclass=_Parser):
         if self._match(TokenType.L_PAREN, advance=False):
             return self._parse_wrapped_csv(self._parse_expression)
 
-        expression = self._parse_expression()
+        expression = self._parse_alias(self._parse_assignment(), explicit=True)
         return [expression] if expression else None
 
     def _parse_csv(
@@ -9133,10 +9261,14 @@ class Parser(metaclass=_Parser):
 
     def _parse_select_or_expression(self, alias: bool = False) -> t.Optional[exp.Expression]:
         """SELECT 优先，否则解析赋值表达式（可强制带别名）。"""
-        return self._parse_select() or self._parse_set_operations(
-            self._parse_alias(self._parse_assignment(), explicit=True)
-            if alias
-            else self._parse_assignment()
+
+        return (
+            self._parse_set_operations(
+                self._parse_alias(self._parse_assignment(), explicit=True)
+                if alias
+                else self._parse_assignment()
+            )
+            or self._parse_select()
         )
 
     def _parse_ddl_select(self) -> t.Optional[exp.Expression]:
@@ -9162,7 +9294,7 @@ class Parser(metaclass=_Parser):
         modes = []
         while True:
             mode = []
-            while self._match(TokenType.VAR):
+            while self._match(TokenType.VAR) or self._match(TokenType.NOT):
                 mode.append(self._prev.text)
 
             if mode:
@@ -9476,6 +9608,19 @@ class Parser(metaclass=_Parser):
 
         return alter_set
 
+
+    def _parse_alter_session(self) -> exp.AlterSession:
+        """Parse ALTER SESSION SET/UNSET statements."""
+        if self._match(TokenType.SET):
+            expressions = self._parse_csv(lambda: self._parse_set_item_assignment())
+            return self.expression(exp.AlterSession, expressions=expressions, unset=False)
+
+        self._match_text_seq("UNSET")
+        expressions = self._parse_csv(
+            lambda: self.expression(exp.SetItem, this=self._parse_id_var(any_token=True))
+        )
+        return self.expression(exp.AlterSession, expressions=expressions, unset=True)
+
     # 解析 ALTER 顶层：匹配可被 ALTER 的对象并派发到具体动作解析器
     def _parse_alter(self) -> exp.Alter | exp.Command:
         start = self._prev
@@ -9488,12 +9633,19 @@ class Parser(metaclass=_Parser):
         # 常见修饰：IF EXISTS、ONLY、表/模式名、可选 ON <cluster>（特定方言）
         exists = self._parse_exists()
         only = self._match_text_seq("ONLY")
-        this = self._parse_table(schema=True)
-        cluster = self._parse_on_property() if self._match(TokenType.ON) else None
 
         # 若存在下一个 token，前进一位以读取动作关键字（如 ADD/DROP/RENAME/SET）
-        if self._next:
-            self._advance()
+        if alter_token.token_type == TokenType.SESSION:
+            this = None
+            check = None
+            cluster = None
+        else:
+            this = self._parse_table(schema=True)
+            check = self._match_text_seq("WITH", "CHECK")
+            cluster = self._parse_on_property() if self._match(TokenType.ON) else None
+
+            if self._next:
+                self._advance()
 
         # 根据动作关键字选择解析器
         parser = self.ALTER_PARSERS.get(self._prev.text.upper()) if self._prev else None
@@ -9518,6 +9670,7 @@ class Parser(metaclass=_Parser):
                     options=options,
                     cluster=cluster,
                     not_valid=not_valid,
+                    check=check,
                 )
 
         # 若未找到对应解析器或未满足完整性条件，则回退到通用命令处理
@@ -10391,6 +10544,13 @@ class Parser(metaclass=_Parser):
 
         # 文件列表与凭据
         files = self._parse_csv(self._parse_file_location)
+        if self._match(TokenType.EQ, advance=False):
+            # Backtrack one token since we've consumed the lhs of a parameter assignment here.
+            # This can happen for Snowflake dialect. Instead, we'd like to parse the parameter
+            # list via `_parse_wrapped(..)` below.
+            self._advance(-1)
+            files = []
+
         credentials = self._parse_credentials()
 
         # 可选 WITH 子句：携带 COPY 参数列表
@@ -10481,11 +10641,11 @@ class Parser(metaclass=_Parser):
 
         return self.expression(exp.GrantPrincipal, this=principal, kind=kind)
 
-    # 解析 GRANT：GRANT <privileges> ON <kind> <securable> TO <principals> [WITH GRANT OPTION]
-    def _parse_grant(self) -> exp.Grant | exp.Command:
-        start = self._prev
 
-        # 权限列表：以逗号分隔的多个权限项
+    # 解析 GRANT：GRANT <privileges> ON <kind> <securable> TO <principals> [WITH GRANT OPTION]
+    def _parse_grant_revoke_common(
+        self,
+    ) -> t.Tuple[t.Optional[t.List], t.Optional[str], t.Optional[exp.Expression]]:
         privileges = self._parse_csv(self._parse_grant_privilege)
 
         # ON <对象类型> <可保护对象>
@@ -10496,6 +10656,12 @@ class Parser(metaclass=_Parser):
         securable = self._try_parse(self._parse_table_parts)
 
         # 若对象未解析或缺少 TO 关键字，视为非常见方言用法：回退到通用命令
+        return privileges, kind, securable
+
+    def _parse_grant(self) -> exp.Grant | exp.Command:
+        start = self._prev
+
+        privileges, kind, securable = self._parse_grant_revoke_common()
         if not securable or not self._match_text_seq("TO"):
             return self._parse_as_command(start)
 
@@ -10516,6 +10682,38 @@ class Parser(metaclass=_Parser):
             securable=securable,
             principals=principals,
             grant_option=grant_option,
+        )
+
+
+
+
+    def _parse_revoke(self) -> exp.Revoke | exp.Command:
+        start = self._prev
+
+        grant_option = self._match_text_seq("GRANT", "OPTION", "FOR")
+
+        privileges, kind, securable = self._parse_grant_revoke_common()
+
+        if not securable or not self._match_text_seq("FROM"):
+            return self._parse_as_command(start)
+
+        principals = self._parse_csv(self._parse_grant_principal)
+
+        cascade = None
+        if self._match_texts(("CASCADE", "RESTRICT")):
+            cascade = self._prev.text.upper()
+
+        if self._curr:
+            return self._parse_as_command(start)
+
+        return self.expression(
+            exp.Revoke,
+            privileges=privileges,
+            kind=kind,
+            securable=securable,
+            principals=principals,
+            grant_option=grant_option,
+            cascade=cascade,
         )
 
     # 解析 OVERLAY：映射 PLACING/FROM/FOR 子句到对应字段
@@ -10873,3 +11071,52 @@ class Parser(metaclass=_Parser):
     #             quoted = False,
     #         )
     #     return index_part_name
+
+
+    def _parse_json_value(self) -> exp.JSONValue:
+        this = self._parse_bitwise()
+        self._match(TokenType.COMMA)
+        path = self._parse_bitwise()
+
+        returning = self._match(TokenType.RETURNING) and self._parse_type()
+
+        return self.expression(
+            exp.JSONValue,
+            this=this,
+            path=self.dialect.to_json_path(path),
+            returning=returning,
+            on_condition=self._parse_on_condition(),
+        )
+
+    def _parse_group_concat(self) -> t.Optional[exp.Expression]:
+        def concat_exprs(
+            node: t.Optional[exp.Expression], exprs: t.List[exp.Expression]
+        ) -> exp.Expression:
+            if isinstance(node, exp.Distinct) and len(node.expressions) > 1:
+                concat_exprs = [
+                    self.expression(exp.Concat, expressions=node.expressions, safe=True)
+                ]
+                node.set("expressions", concat_exprs)
+                return node
+            if len(exprs) == 1:
+                return exprs[0]
+            return self.expression(exp.Concat, expressions=args, safe=True)
+
+        args = self._parse_csv(self._parse_lambda)
+
+        if args:
+            order = args[-1] if isinstance(args[-1], exp.Order) else None
+
+            if order:
+                # Order By is the last (or only) expression in the list and has consumed the 'expr' before it,
+                # remove 'expr' from exp.Order and add it back to args
+                args[-1] = order.this
+                order.set("this", concat_exprs(order.this, args))
+
+            this = order or concat_exprs(args[0], args)
+        else:
+            this = None
+
+        separator = self._parse_field() if self._match(TokenType.SEPARATOR) else None
+
+        return self.expression(exp.GroupConcat, this=this, separator=separator)

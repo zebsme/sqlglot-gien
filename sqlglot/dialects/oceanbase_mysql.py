@@ -16,6 +16,45 @@ class OceanBase_MySQL(MySQL):  # 继承自 MySQL 方言
         }
 
     class Parser(MySQL.Parser):
+        def _parse_primary_key(
+            self, wrapped_optional: bool = False, in_props: bool = False
+        ) -> exp.PrimaryKeyColumnConstraint | exp.PrimaryKey:
+            """解析 PRIMARY KEY，支持 OceanBase 的 USING BTREE 语法"""
+            desc = (
+                self._match_set((TokenType.ASC, TokenType.DESC))
+                and self._prev.token_type == TokenType.DESC
+            )
+
+            # 检查是否有 USING 子句（OceanBase 特有语法）
+            index_type = None
+            if self._match(TokenType.USING):
+                index_type = self._advance_any() and self._prev.text
+
+            # 解析其他键约束选项
+            options = self._parse_key_constraint_options()
+            
+            # 如果有 index_type，将其添加到选项中
+            if index_type:
+                options.append(exp.IndexConstraintOption(using=index_type))
+
+            if not in_props and not self._match(TokenType.L_PAREN, advance=False):
+                return self.expression(
+                    exp.PrimaryKeyColumnConstraint,
+                    desc=desc,
+                    options=options,
+                )
+
+            expressions = self._parse_wrapped_csv(
+                self._parse_primary_key_part, optional=wrapped_optional
+            )
+
+            return self.expression(
+                exp.PrimaryKey,
+                expressions=expressions,
+                include=self._parse_index_params(),
+                options=options,
+            )
+
         def _parse_index_constraint(
             self, kind: t.Optional[str] = None
         ) -> exp.IndexColumnConstraint:
@@ -111,6 +150,64 @@ class OceanBase_MySQL(MySQL):  # 继承自 MySQL 方言
                 result = f"{result} UNSIGNED"
 
             return result
+
+        def primarykey_sql(self, expression: exp.PrimaryKey) -> str:
+            """生成 PRIMARY KEY 约束的 SQL，支持 USING 子句"""
+            expressions = self.expressions(expression, "expressions")
+            
+            sql = f"PRIMARY KEY ({expressions})"
+            
+            # 从 options 中查找 USING 子句
+            options = expression.args.get("options", [])
+            for option in options:
+                if isinstance(option, exp.IndexConstraintOption):
+                    using = option.args.get("using")
+                    if using:
+                        sql += f" USING {using}"
+                        break
+            
+            # 生成其他选项
+            other_options = []
+            for option in options:
+                if isinstance(option, exp.IndexConstraintOption):
+                    using = option.args.get("using")
+                    if not using:  # 跳过 USING 选项，已经处理过了
+                        option_sql = self.indexconstraintoption_sql(option)
+                        if option_sql:
+                            other_options.append(option_sql)
+            
+            if other_options:
+                sql += f" {' '.join(other_options)}"
+                
+            return sql
+
+        def primarykeycolumnconstraint_sql(self, expression: exp.PrimaryKeyColumnConstraint) -> str:
+            """生成列级 PRIMARY KEY 约束的 SQL，支持 USING 子句"""
+            sql = "PRIMARY KEY"
+            
+            # 从 options 中查找 USING 子句
+            options = expression.args.get("options", [])
+            for option in options:
+                if isinstance(option, exp.IndexConstraintOption):
+                    using = option.args.get("using")
+                    if using:
+                        sql += f" USING {using}"
+                        break
+            
+            # 生成其他选项
+            other_options = []
+            for option in options:
+                if isinstance(option, exp.IndexConstraintOption):
+                    using = option.args.get("using")
+                    if not using:  # 跳过 USING 选项，已经处理过了
+                        option_sql = self.indexconstraintoption_sql(option)
+                        if option_sql:
+                            other_options.append(option_sql)
+            
+            if other_options:
+                sql += f" {' '.join(other_options)}"
+                
+            return sql
 
         def indexconstraintoption_sql(self, expression: exp.IndexConstraintOption) -> str:
             # GLOBAL | LOCAL - 全局或本地索引选项

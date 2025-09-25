@@ -56,3 +56,19 @@ def save_res(file_path, sqls):
 #         logger.error(f"Error in template: {e}")
 #         text = ""
 #     return text
+
+def read_sql_file(file_path: str) -> str:
+    """
+    读取 SQL 文件内容
+    :param file_path: SQL 文件路径
+    :return: SQL 文件内容字符串
+    :raises: FileNotFoundError, IOError
+    """
+    try:
+        with open(file_path, 'r', encoding='utf-8') as f:
+            return f.read()
+    except FileNotFoundError:
+        raise FileNotFoundError(f"SQL 文件不存在: {file_path}")
+    except UnicodeDecodeError:
+        with open(file_path, 'r', encoding='GBK') as f:  # 尝试 GBK 编码
+            return f.read()

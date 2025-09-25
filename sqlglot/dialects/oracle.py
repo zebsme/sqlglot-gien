@@ -99,32 +99,7 @@ class Oracle(Dialect):
             "TOP": TokenType.TOP,
             "VARCHAR2": TokenType.VARCHAR,
             "ENABLE": TokenType.ENABLE,
-            # Oracle storage parameters
-            "PCTFREE": TokenType.PCTFREE,
-            "PCTUSED": TokenType.PCTUSED,
-            "INITRANS": TokenType.INITRANS,
-            "MAXTRANS": TokenType.MAXTRANS,
-            "SEGMENT": TokenType.SEGMENT,
-            "CREATION": TokenType.CREATION,
-            "IMMEDIATE": TokenType.IMMEDIATE,
-            "DEFERRED": TokenType.DEFERRED,
-            "NOCOMPRESS": TokenType.NOCOMPRESS,
-            "COMPRESS": TokenType.COMPRESS,
-            "LOGGING": TokenType.LOGGING,
-            "NOLOGGING": TokenType.NOLOGGING,
-            "FREELISTS": TokenType.FREELISTS,
-            "FREELIST": TokenType.FREELIST,
-            "GROUPS": TokenType.GROUPS,
-            "BUFFER_POOL": TokenType.BUFFER_POOL,
-            "FLASH_CACHE": TokenType.FLASH_CACHE,
-            "CELL_FLASH_CACHE": TokenType.CELL_FLASH_CACHE,
-            "DEFAULT": TokenType.DEFAULT,
-            "KEEP": TokenType.KEEP,
-            "RECYCLE": TokenType.RECYCLE,
-            "NONE": TokenType.NONE,
-            "COMPUTE": TokenType.COMPUTE,
-            "STATISTICS": TokenType.STATISTICS,
-            "TABLESPACE": TokenType.TABLESPACE,
+            "TIMESTAMP": TokenType.TIMESTAMP,
         }
 
     class Parser(parser.Parser):
@@ -134,6 +109,7 @@ class Oracle(Dialect):
         FUNCTIONS = {
             **parser.Parser.FUNCTIONS,
             "CONVERT": exp.ConvertToCharset.from_arg_list,
+            "L2_DISTANCE": exp.EuclideanDistance.from_arg_list,
             "NVL": lambda args: build_coalesce(args, is_nvl=True),
             "SQUARE": lambda args: exp.Pow(this=seq_get(args, 0), expression=exp.Literal.number(2)),
             "TO_CHAR": build_timetostr_or_tochar,
@@ -176,24 +152,12 @@ class Oracle(Dialect):
             "PRIVATE": lambda self: self._match_text_seq("TEMPORARY")
             and self.expression(exp.TemporaryProperty, this="PRIVATE"),
             "FORCE": lambda self: self.expression(exp.ForceProperty),
-            # Oracle storage parameters
-            "SEGMENT": lambda self: self._parse_segment_creation(),
-            "PCTFREE": lambda self: self._parse_pctfree(),
-            "PCTUSED": lambda self: self._parse_pctused(),
-            "INITRANS": lambda self: self._parse_inittrans(),
-            "MAXTRANS": lambda self: self._parse_maxtrans(),
-            "NOCOMPRESS": lambda self: self.expression(exp.CompressProperty, this="NOCOMPRESS"),
-            "COMPRESS": lambda self: self.expression(exp.CompressProperty, this="COMPRESS"),
-            "LOGGING": lambda self: self.expression(exp.LoggingProperty, this="LOGGING"),
-            "NOLOGGING": lambda self: self.expression(exp.LoggingProperty, this="NOLOGGING"),
-            "STORAGE": lambda self: self._parse_storage(),
-            "FREELISTS": lambda self: self._parse_freelists(),
-            "FREELIST": lambda self: self._parse_freelist_groups(),
-            "BUFFER_POOL": lambda self: self._parse_buffer_pool(),
-            "FLASH_CACHE": lambda self: self._parse_flash_cache(),
-            "CELL_FLASH_CACHE": lambda self: self._parse_cell_flash_cache(),
-            "COMPUTE": lambda self: self._parse_compute_statistics(),
-            "TABLESPACE": lambda self: self._parse_tablespace(),
+            "PARTITION BY": lambda self: self._parse_partitioned_by_oracle(),
+        }
+
+        STATEMENT_PARSERS = {
+            **parser.Parser.STATEMENT_PARSERS,
+            "COMMENT": lambda self: self._parse_comment_on(),
         }
 
         QUERY_MODIFIER_PARSERS = {
@@ -207,6 +171,52 @@ class Oracle(Dialect):
                 exp.DateStrToDate, this=this
             )
         }
+
+        def _parse_types(self, check_func: bool = False, schema: bool = False, allow_identifiers: bool = True) -> t.Optional[exp.Expression]:
+            """Override to handle Oracle-specific data types."""
+            # Handle INT(0) -> INT (ignore parameter)
+            if self._match_text_seq("INT"):
+                if self._match(TokenType.L_PAREN):
+                    # Parse INT(0) as INT - consume the parameter but ignore it
+                    self._parse_number()  # Parse the 0
+                    self._match(TokenType.R_PAREN)
+                    return self.expression(exp.DataType, this=exp.DataType.Type.INT)
+                else:
+                    return self.expression(exp.DataType, this=exp.DataType.Type.INT)
+
+            # Handle FLOAT(256) -> FLOAT with length parameter
+            if self._match_text_seq("FLOAT"):
+                if self._match(TokenType.L_PAREN):
+                    # Parse FLOAT(256) and preserve the length parameter
+                    length_value = self._parse_number()  # Parse the 256
+                    self._match(TokenType.R_PAREN)
+                    # Create a literal expression for the length
+                    length_expr = self.expression(exp.Literal, this=length_value.this, is_string=False)
+                    return self.expression(exp.DataType, this=exp.DataType.Type.FLOAT, expressions=[length_expr])
+                else:
+                    return self.expression(exp.DataType, this=exp.DataType.Type.FLOAT)
+
+            # Handle DOUBLE PRECISION -> BINARY_DOUBLE
+            if self._match_text_seq("DOUBLE", "PRECISION"):
+                return self.expression(exp.DataType, this=exp.DataType.Type.BINARY_DOUBLE)
+
+            # For all other cases, use the parent implementation
+            return super()._parse_types(check_func, schema, allow_identifiers)
+
+        def _parse_field_def(self) -> t.Optional[exp.Expression]:
+            """Override field definition parsing for Oracle."""
+            # Use the parent implementation but with Oracle-specific handling
+            return super()._parse_field_def()
+
+        def _parse_schema(self, this: t.Optional[exp.Expression] = None) -> t.Optional[exp.Expression]:
+            """Override schema parsing for Oracle."""
+            # Use the parent implementation but with Oracle-specific handling
+            return super()._parse_schema(this)
+
+        def _parse_column_def(self, this: t.Optional[exp.Expression], computed_column: bool = True) -> t.Optional[exp.Expression]:
+            """Override column definition parsing for Oracle."""
+            # Use the parent implementation but with Oracle-specific handling
+            return super()._parse_column_def(this, computed_column)
 
         # SELECT UNIQUE .. is old-style Oracle syntax for SELECT DISTINCT ..
         # Reference: https://stackoverflow.com/a/336455
@@ -287,209 +297,6 @@ class Oracle(Dialect):
                 on_condition=self._parse_on_condition(),
             )
 
-        def _parse_segment_creation(self) -> exp.SegmentCreationProperty:
-            """Parse SEGMENT CREATION IMMEDIATE/DEFERRED"""
-            self._match_text_seq("CREATION")
-            creation_type = "IMMEDIATE"
-            if self._match(TokenType.IMMEDIATE):
-                creation_type = "IMMEDIATE"
-            elif self._match(TokenType.DEFERRED):
-                creation_type = "DEFERRED"
-            return self.expression(exp.SegmentCreationProperty, this=creation_type)
-
-        def _parse_pctfree(self) -> exp.PctFreeProperty:
-            """Parse PCTFREE value"""
-            value = self._parse_number()
-            return self.expression(exp.PctFreeProperty, this=value)
-
-        def _parse_pctused(self) -> exp.PctUsedProperty:
-            """Parse PCTUSED value"""
-            value = self._parse_number()
-            return self.expression(exp.PctUsedProperty, this=value)
-
-        def _parse_inittrans(self) -> exp.InitTransProperty:
-            """Parse INITRANS value"""
-            value = self._parse_number()
-            return self.expression(exp.InitTransProperty, this=value)
-
-        def _parse_maxtrans(self) -> exp.MaxTransProperty:
-            """Parse MAXTRANS value"""
-            value = self._parse_number()
-            return self.expression(exp.MaxTransProperty, this=value)
-
-        def _parse_storage(self) -> exp.StorageProperty:
-            """Parse STORAGE clause with parameters"""
-            self._match(TokenType.L_PAREN)
-            storage_params = []
-            
-            # Parse storage parameters like INITIAL, NEXT, MINEXTENTS, etc.
-            while not self._match(TokenType.R_PAREN):
-                if self._match_text_seq("INITIAL"):
-                    value = self._parse_number()
-                    storage_params.append(("INITIAL", value))
-                elif self._match_text_seq("NEXT"):
-                    value = self._parse_number()
-                    storage_params.append(("NEXT", value))
-                elif self._match_text_seq("MINEXTENTS"):
-                    value = self._parse_number()
-                    storage_params.append(("MINEXTENTS", value))
-                elif self._match_text_seq("MAXEXTENTS"):
-                    value = self._parse_number()
-                    storage_params.append(("MAXEXTENTS", value))
-                elif self._match_text_seq("PCTINCREASE"):
-                    value = self._parse_number()
-                    storage_params.append(("PCTINCREASE", value))
-                elif self._match_text_seq("FREELISTS"):
-                    value = self._parse_number()
-                    storage_params.append(("FREELISTS", value))
-                elif self._match_text_seq("FREELIST", "GROUPS"):
-                    value = self._parse_number()
-                    storage_params.append(("FREELIST_GROUPS", value))
-                elif self._match_text_seq("BUFFER_POOL"):
-                    if self._match(TokenType.DEFAULT):
-                        storage_params.append(("BUFFER_POOL", "DEFAULT"))
-                    elif self._match(TokenType.KEEP):
-                        storage_params.append(("BUFFER_POOL", "KEEP"))
-                    elif self._match(TokenType.RECYCLE):
-                        storage_params.append(("BUFFER_POOL", "RECYCLE"))
-                elif self._match_text_seq("FLASH_CACHE"):
-                    if self._match(TokenType.DEFAULT):
-                        storage_params.append(("FLASH_CACHE", "DEFAULT"))
-                    elif self._match(TokenType.KEEP):
-                        storage_params.append(("FLASH_CACHE", "KEEP"))
-                    elif self._match(TokenType.NONE):
-                        storage_params.append(("FLASH_CACHE", "NONE"))
-                elif self._match_text_seq("CELL_FLASH_CACHE"):
-                    if self._match(TokenType.DEFAULT):
-                        storage_params.append(("CELL_FLASH_CACHE", "DEFAULT"))
-                    elif self._match(TokenType.KEEP):
-                        storage_params.append(("CELL_FLASH_CACHE", "KEEP"))
-                    elif self._match(TokenType.NONE):
-                        storage_params.append(("CELL_FLASH_CACHE", "NONE"))
-                
-                # Skip comma if present
-                self._match(TokenType.COMMA)
-            
-            return self.expression(exp.StorageProperty, this=storage_params)
-
-        def _parse_freelists(self) -> exp.FreelistsProperty:
-            """Parse FREELISTS value"""
-            value = self._parse_number()
-            return self.expression(exp.FreelistsProperty, this=value)
-
-        def _parse_freelist_groups(self) -> exp.FreelistGroupsProperty:
-            """Parse FREELIST GROUPS value"""
-            self._match_text_seq("GROUPS")
-            value = self._parse_number()
-            return self.expression(exp.FreelistGroupsProperty, this=value)
-
-        def _parse_buffer_pool(self) -> exp.BufferPoolProperty:
-            """Parse BUFFER_POOL type"""
-            if self._match(TokenType.DEFAULT):
-                return self.expression(exp.BufferPoolProperty, this="DEFAULT")
-            elif self._match(TokenType.KEEP):
-                return self.expression(exp.BufferPoolProperty, this="KEEP")
-            elif self._match(TokenType.RECYCLE):
-                return self.expression(exp.BufferPoolProperty, this="RECYCLE")
-            return self.expression(exp.BufferPoolProperty, this="DEFAULT")
-
-        def _parse_flash_cache(self) -> exp.FlashCacheProperty:
-            """Parse FLASH_CACHE type"""
-            if self._match(TokenType.DEFAULT):
-                return self.expression(exp.FlashCacheProperty, this="DEFAULT")
-            elif self._match(TokenType.KEEP):
-                return self.expression(exp.FlashCacheProperty, this="KEEP")
-            elif self._match(TokenType.NONE):
-                return self.expression(exp.FlashCacheProperty, this="NONE")
-            return self.expression(exp.FlashCacheProperty, this="DEFAULT")
-
-        def _parse_cell_flash_cache(self) -> exp.CellFlashCacheProperty:
-            """Parse CELL_FLASH_CACHE type"""
-            if self._match(TokenType.DEFAULT):
-                return self.expression(exp.CellFlashCacheProperty, this="DEFAULT")
-            elif self._match(TokenType.KEEP):
-                return self.expression(exp.CellFlashCacheProperty, this="KEEP")
-            elif self._match(TokenType.NONE):
-                return self.expression(exp.CellFlashCacheProperty, this="NONE")
-            return self.expression(exp.CellFlashCacheProperty, this="DEFAULT")
-
-        def _parse_compute_statistics(self) -> exp.ComputeStatisticsProperty:
-            """Parse COMPUTE STATISTICS"""
-            self._match_text_seq("STATISTICS")
-            return self.expression(exp.ComputeStatisticsProperty, this="COMPUTE STATISTICS")
-
-        def _parse_tablespace(self) -> exp.TablespaceProperty:
-            """Parse TABLESPACE name"""
-            tablespace_name = self._parse_id_var()
-            return self.expression(exp.TablespaceProperty, this=tablespace_name)
-
-        def _parse_index_params(self) -> exp.IndexParameters:
-            """Override to handle Oracle-specific index parameters"""
-            # Parse standard index parameters first
-            using = self._parse_var(any_token=True) if self._match(TokenType.USING) else None
-
-            # Parse columns
-            if self._match(TokenType.L_PAREN, advance=False):
-                columns = self._parse_wrapped_csv(self._parse_with_operator)
-            else:
-                columns = None
-
-            include = self._parse_wrapped_id_vars() if self._match_text_seq("INCLUDE") else None
-            partition_by = self._parse_partition_by()
-            
-            # Parse Oracle-specific index storage parameters
-            oracle_storage_props = []
-            
-            # Parse PCTFREE
-            if self._match(TokenType.PCTFREE):
-                value = self._parse_number()
-                oracle_storage_props.append(self.expression(exp.PctFreeProperty, this=value))
-            
-            # Parse INITRANS
-            if self._match(TokenType.INITRANS):
-                value = self._parse_number()
-                oracle_storage_props.append(self.expression(exp.InitTransProperty, this=value))
-            
-            # Parse MAXTRANS
-            if self._match(TokenType.MAXTRANS):
-                value = self._parse_number()
-                oracle_storage_props.append(self.expression(exp.MaxTransProperty, this=value))
-            
-            # Parse COMPUTE STATISTICS
-            if self._match(TokenType.COMPUTE):
-                self._match_text_seq("STATISTICS")
-                oracle_storage_props.append(self.expression(exp.ComputeStatisticsProperty, this="COMPUTE STATISTICS"))
-            
-            # Parse STORAGE clause
-            if self._match_text_seq("STORAGE"):
-                storage_prop = self._parse_storage()
-                oracle_storage_props.append(storage_prop)
-            
-            # Parse TABLESPACE
-            tablespace = None
-            if self._match(TokenType.TABLESPACE):
-                tablespace_name = self._parse_id_var()
-                tablespace = tablespace_name
-                oracle_storage_props.append(self.expression(exp.TablespaceProperty, this=tablespace_name))
-            
-            # Convert Oracle storage properties to with_storage format
-            with_storage = oracle_storage_props if oracle_storage_props else None
-            
-            where = self._parse_where()
-            on = self._parse_field() if self._match(TokenType.ON) else None
-
-            return self.expression(
-                exp.IndexParameters,
-                using=using,
-                columns=columns,
-                include=include,
-                partition_by=partition_by,
-                where=where,
-                with_storage=with_storage,
-                tablespace=tablespace,
-                on=on,
-            )
-
         def _parse_into(self) -> t.Optional[exp.Into]:
             # https://docs.oracle.com/en/database/oracle/oracle-database/19/lnpls/SELECT-INTO-statement.html
             bulk_collect = self._match(TokenType.BULK_COLLECT_INTO)
@@ -510,6 +317,221 @@ class Oracle(Dialect):
 
         def _parse_connect_with_prior(self):
             return self._parse_assignment()
+
+        def _parse_partitioned_by_oracle(self) -> t.Optional[exp.Expression]:
+            """Parse Oracle PARTITION BY syntax with a simple approach."""
+            # Parse the partition type and column
+            if self._match_text_seq("LIST"):
+                partition_expressions = self._parse_wrapped_csv(self._parse_expression)
+                
+                # Skip the partition definitions for now - just consume the tokens
+                if self._match(TokenType.L_PAREN):
+                    # Find the matching closing paren
+                    paren_count = 1
+                    while paren_count > 0 and self._curr:
+                        if self._curr.token_type == TokenType.L_PAREN:
+                            paren_count += 1
+                        elif self._curr.token_type == TokenType.R_PAREN:
+                            paren_count -= 1
+                        self._advance()
+                
+                # Return a simple partitioned by property
+                return self.expression(
+                    exp.PartitionedByProperty,
+                    this=self.expression(exp.Partition, expressions=partition_expressions)
+                )
+            else:
+                # Fall back to the base parser for other partition types
+                return super()._parse_partitioned_by()
+
+        def _parse_partition_by_oracle(self) -> t.Optional[exp.Expression]:
+            """Parse Oracle PARTITION BY syntax."""
+            if not self._match_text_seq("PARTITION", "BY"):
+                return None
+            
+            # Parse partition type (RANGE, LIST, HASH, INTERVAL)
+            if self._match_text_seq("RANGE"):
+                return self._parse_partition_by_range_oracle()
+            elif self._match_text_seq("LIST"):
+                return self._parse_partition_by_list_oracle()
+            elif self._match_text_seq("HASH"):
+                return self._parse_partition_by_hash_oracle()
+            elif self._match_text_seq("INTERVAL"):
+                return self._parse_partition_by_interval_oracle()
+            else:
+                # Fall back to generic partition parsing
+                return super()._parse_partitioned_by()
+
+        def _parse_partition_by_range_oracle(self) -> exp.Expression:
+            """Parse Oracle PARTITION BY RANGE syntax."""
+            partition_expressions = self._parse_wrapped_csv(self._parse_expression)
+            create_expressions = self._parse_wrapped_csv(self._parse_partition_definition_oracle)
+            
+            return self.expression(
+                exp.PartitionByRangeProperty,
+                partition_expressions=partition_expressions,
+                create_expressions=create_expressions,
+            )
+
+        def _parse_partition_by_list_oracle(self) -> exp.Expression:
+            """Parse Oracle PARTITION BY LIST syntax."""
+            # Parse the partition column(s)
+            partition_expressions = self._parse_wrapped_csv(self._parse_expression)
+            
+            # Parse the partition definitions
+            create_expressions = []
+            if self._match(TokenType.L_PAREN):
+                # Parse each partition definition
+                create_expressions = self._parse_csv(self._parse_partition_definition_oracle)
+                self._match(TokenType.R_PAREN)
+            
+            return self.expression(
+                exp.PartitionByListProperty,
+                partition_expressions=partition_expressions,
+                create_expressions=create_expressions,
+            )
+
+        def _parse_partition_by_hash_oracle(self) -> exp.Expression:
+            """Parse Oracle PARTITION BY HASH syntax."""
+            partition_expressions = self._parse_wrapped_csv(self._parse_expression)
+            
+            return self.expression(
+                exp.PartitionedByProperty,
+                this=self.expression(exp.Partition, expressions=partition_expressions),
+            )
+
+        def _parse_partition_by_interval_oracle(self) -> exp.Expression:
+            """Parse Oracle PARTITION BY INTERVAL syntax."""
+            # Parse the interval expression (e.g., INTERVAL (NUMTODSINTERVAL(1,'MONTH')))
+            interval_expression = self._parse_expression()
+            
+            # Parse the range partition key
+            partition_expressions = self._parse_wrapped_csv(self._parse_expression)
+            
+            # Parse partition definitions
+            create_expressions = self._parse_wrapped_csv(self._parse_partition_definition_oracle)
+            
+            return self.expression(
+                exp.PartitionByIntervalProperty,
+                interval_expression=interval_expression,
+                partition_expressions=partition_expressions,
+                create_expressions=create_expressions,
+            )
+
+        def _parse_partition_definition_oracle(self) -> t.Optional[exp.Expression]:
+            """Parse Oracle partition definition like 'PARTITION p1 VALUES (10)'."""
+            if not self._match_text_seq("PARTITION"):
+                return None
+            
+            name = self._parse_id_var()
+            values = None
+            
+            # Parse VALUES clause
+            if self._match_text_seq("VALUES"):
+                values = self._parse_wrapped_csv(self._parse_expression)
+            
+            # Create a simple partition list expression
+            return self.expression(
+                exp.PartitionList,
+                this=name,
+                expressions=values,
+            )
+
+        def _parse_storage_clause(self) -> t.Optional[exp.Expression]:
+            """Parse Oracle STORAGE clause."""
+            storage_options = {}
+            
+            while not self._match(TokenType.R_PAREN, advance=False):
+                if self._match_text_seq("INITIAL"):
+                    storage_options["INITIAL"] = self._parse_number()
+                elif self._match_text_seq("NEXT"):
+                    storage_options["NEXT"] = self._parse_number()
+                elif self._match_text_seq("MINEXTENTS"):
+                    storage_options["MINEXTENTS"] = self._parse_number()
+                elif self._match_text_seq("MAXEXTENTS"):
+                    storage_options["MAXEXTENTS"] = self._parse_number()
+                elif self._match_text_seq("PCTINCREASE"):
+                    storage_options["PCTINCREASE"] = self._parse_number()
+                elif self._match_text_seq("FREELISTS"):
+                    storage_options["FREELISTS"] = self._parse_number()
+                elif self._match_text_seq("FREELIST"):
+                    storage_options["FREELIST"] = self._parse_number()
+                else:
+                    break
+            
+            return self.expression(exp.Anonymous, this="STORAGE", expressions=list(storage_options.values()))
+
+        def _parse_subpartition_definition_oracle(self) -> t.Optional[exp.Expression]:
+            """Parse Oracle subpartition definition."""
+            if not self._match_text_seq("SUBPARTITION"):
+                return None
+            
+            name = self._parse_id_var()
+            values = None
+            tablespace = None
+            storage_options = []
+            
+            # Parse VALUES clause for LIST subpartitions
+            if self._match_text_seq("VALUES"):
+                if self._match(TokenType.L_PAREN):
+                    values = self._parse_wrapped_csv(self._parse_expression)
+                else:
+                    # Handle VALUES IN syntax
+                    if self._match_text_seq("IN"):
+                        values = self._parse_wrapped_csv(self._parse_expression)
+            
+            # Parse subpartition attributes
+            while True:
+                if self._match_text_seq("TABLESPACE"):
+                    tablespace = self._parse_id_var()
+                elif self._match_text_seq("STORAGE"):
+                    if self._match(TokenType.L_PAREN):
+                        storage_options.append(self._parse_storage_clause())
+                        self._match(TokenType.R_PAREN)
+                elif self._match_text_seq("LOGGING") or self._match_text_seq("NOLOGGING"):
+                    storage_options.append(self._prev.text.upper())
+                elif self._match_text_seq("COMPRESS") or self._match_text_seq("NOCOMPRESS"):
+                    storage_options.append(self._prev.text.upper())
+                else:
+                    break
+            
+            # Use PartitionList for subpartition definitions as well
+            return self.expression(
+                exp.PartitionList,
+                this=name,
+                expressions=values,
+            )
+
+        def _parse_comment_on(self) -> t.Optional[exp.Expression]:
+            """Parse Oracle COMMENT ON syntax."""
+            if not self._match_text_seq("COMMENT", "ON"):
+                return None
+            
+            # Parse object type (TABLE, COLUMN, etc.)
+            kind = self._parse_id_var()
+            if not kind:
+                return None
+            
+            # Parse object name (table.column or just table)
+            this = self._parse_table_parts()
+            if not this:
+                return None
+            
+            # Parse IS clause
+            if not self._match_text_seq("IS"):
+                return None
+            
+            # Parse comment text
+            comment_text = self._parse_string()
+            if not comment_text:
+                return None
+            
+            return self.expression(
+                exp.Comment,
+                this=comment_text,
+                kind=kind,
+                expression=this,
+            )
 
         def _parse_column_constraint(self) -> t.Optional[exp.Expression]:
             this = self._match(TokenType.CONSTRAINT) and self._parse_id_var()
@@ -578,6 +600,7 @@ class Oracle(Dialect):
                 "TO_DATE", e.this, exp.Literal.string("YYYY-MM-DD")
             ),
             exp.DateTrunc: lambda self, e: self.func("TRUNC", e.this, e.unit),
+            exp.EuclideanDistance: rename_func("L2_DISTANCE"),
             exp.Group: transforms.preprocess([transforms.unalias_group]),
             exp.ILike: no_ilike_sql,
             exp.LogicalOr: rename_func("MAX"),
@@ -609,43 +632,16 @@ class Oracle(Dialect):
             exp.Unicode: lambda self, e: f"ASCII(UNISTR({self.sql(e.this)}))",
             exp.UnixToTime: lambda self,
             e: f"TO_DATE('1970-01-01', 'YYYY-MM-DD') + ({self.sql(e, 'this')} / 86400)",
-            # Oracle storage properties
-            exp.SegmentCreationProperty: lambda self, e: f"SEGMENT CREATION {self.sql(e, 'this')}",
-            exp.PctFreeProperty: lambda self, e: f"PCTFREE {self.sql(e, 'this')}",
-            exp.PctUsedProperty: lambda self, e: f"PCTUSED {self.sql(e, 'this')}",
-            exp.InitTransProperty: lambda self, e: f"INITRANS {self.sql(e, 'this')}",
-            exp.MaxTransProperty: lambda self, e: f"MAXTRANS {self.sql(e, 'this')}",
-            exp.CompressProperty: lambda self, e: self.sql(e, 'this'),
-            exp.LoggingProperty: lambda self, e: self.sql(e, 'this'),
-            exp.StorageProperty: lambda self, e: self._storage_sql(e),
-            exp.FreelistsProperty: lambda self, e: f"FREELISTS {self.sql(e, 'this')}",
-            exp.FreelistGroupsProperty: lambda self, e: f"FREELIST GROUPS {self.sql(e, 'this')}",
-            exp.BufferPoolProperty: lambda self, e: f"BUFFER_POOL {self.sql(e, 'this')}",
-            exp.FlashCacheProperty: lambda self, e: f"FLASH_CACHE {self.sql(e, 'this')}",
-            exp.CellFlashCacheProperty: lambda self, e: f"CELL_FLASH_CACHE {self.sql(e, 'this')}",
-            exp.ComputeStatisticsProperty: lambda self, e: self.sql(e, 'this'),
-            exp.TablespaceProperty: lambda self, e: f"TABLESPACE {self.sql(e, 'this')}",
+            exp.UtcTimestamp: rename_func("UTC_TIMESTAMP"),
+            exp.UtcTime: rename_func("UTC_TIME"),
         }
 
         PROPERTIES_LOCATION = {
             **generator.Generator.PROPERTIES_LOCATION,
             exp.VolatileProperty: exp.Properties.Location.UNSUPPORTED,
-            # Oracle storage properties
-            exp.SegmentCreationProperty: exp.Properties.Location.POST_SCHEMA,
-            exp.PctFreeProperty: exp.Properties.Location.POST_SCHEMA,
-            exp.PctUsedProperty: exp.Properties.Location.POST_SCHEMA,
-            exp.InitTransProperty: exp.Properties.Location.POST_SCHEMA,
-            exp.MaxTransProperty: exp.Properties.Location.POST_SCHEMA,
-            exp.CompressProperty: exp.Properties.Location.POST_SCHEMA,
-            exp.LoggingProperty: exp.Properties.Location.POST_SCHEMA,
-            exp.StorageProperty: exp.Properties.Location.POST_SCHEMA,
-            exp.FreelistsProperty: exp.Properties.Location.POST_SCHEMA,
-            exp.FreelistGroupsProperty: exp.Properties.Location.POST_SCHEMA,
-            exp.BufferPoolProperty: exp.Properties.Location.POST_SCHEMA,
-            exp.FlashCacheProperty: exp.Properties.Location.POST_SCHEMA,
-            exp.CellFlashCacheProperty: exp.Properties.Location.POST_SCHEMA,
-            exp.ComputeStatisticsProperty: exp.Properties.Location.POST_SCHEMA,
-            exp.TablespaceProperty: exp.Properties.Location.POST_SCHEMA,
+            exp.PartitionByRangeProperty: exp.Properties.Location.POST_SCHEMA,
+            exp.PartitionByListProperty: exp.Properties.Location.POST_SCHEMA,
+            exp.PartitionedByProperty: exp.Properties.Location.POST_SCHEMA,
         }
 
         def currenttimestamp_sql(self, expression: exp.CurrentTimestamp) -> str:
@@ -694,44 +690,6 @@ class Oracle(Dialect):
         def isascii_sql(self, expression: exp.IsAscii) -> str:
             return f"NVL(REGEXP_LIKE({self.sql(expression.this)}, '^[' || CHR(1) || '-' || CHR(127) || ']*$'), TRUE)"
 
-        def _storage_sql(self, expression: exp.StorageProperty) -> str:
-            """Generate SQL for Oracle STORAGE clause"""
-            storage_params = expression.this
-            if not storage_params:
-                return "STORAGE()"
-            
-            param_parts = []
-            for param_name, param_value in storage_params:
-                if param_name == "FREELIST_GROUPS":
-                    param_parts.append(f"FREELIST GROUPS {param_value}")
-                else:
-                    param_parts.append(f"{param_name} {param_value}")
-            
-            return f"STORAGE({', '.join(param_parts)})"
-
-        def indexparameters_sql(self, expression: exp.IndexParameters) -> str:
-            """Generate SQL for Oracle IndexParameters"""
-            parts = []
-            
-            # Handle columns
-            if expression.args.get("columns"):
-                columns_sql = self.expressions(expression, key="columns")
-                parts.append(f"({columns_sql})")
-            
-            # Handle Oracle-specific storage parameters (not in WITH clause)
-            if expression.args.get("with_storage"):
-                storage_props = expression.args["with_storage"]
-                for prop in storage_props:
-                    if isinstance(prop, exp.TablespaceProperty):
-                        # Skip tablespace here, it will be handled separately
-                        continue
-                    parts.append(self.sql(prop))
-            
-            # Handle tablespace separately
-            if expression.args.get("tablespace"):
-                parts.append(f"TABLESPACE {self.sql(expression, 'tablespace')}")
-            
-            return " ".join(parts)
 
         def columnconstraint_sql(self, expression: exp.ColumnConstraint) -> str:
             this = self.sql(expression, "this")
@@ -742,3 +700,25 @@ class Oracle(Dialect):
             enable_sql = " ENABLE" if enabled else ""
             
             return f"CONSTRAINT {this} {kind_sql}{enable_sql}" if this else f"{kind_sql}{enable_sql}"
+
+        def partitionbyrangeproperty_sql(self, expression: exp.PartitionByRangeProperty) -> str:
+            """Generate Oracle PARTITION BY RANGE syntax."""
+            partition_expressions = self.sql(expression, "partition_expressions")
+            create_expressions = self.sql(expression, "create_expressions")
+            return f"PARTITION BY RANGE {self.wrap(partition_expressions)} {self.wrap(create_expressions)}"
+
+        def partitionbylistproperty_sql(self, expression: exp.PartitionByListProperty) -> str:
+            """Generate Oracle PARTITION BY LIST syntax."""
+            partition_expressions = self.sql(expression, "partition_expressions")
+            create_expressions = self.sql(expression, "create_expressions")
+            return f"PARTITION BY LIST {self.wrap(partition_expressions)} {self.wrap(create_expressions)}"
+
+        def partitionlist_sql(self, expression: exp.PartitionList) -> str:
+            """Generate Oracle partition definition syntax."""
+            name = self.sql(expression, "this")
+            values = expression.args.get("expressions")
+
+            if values:
+                return f"PARTITION {name} VALUES {self.wrap(values)}"
+            else:
+                return f"PARTITION {name}"

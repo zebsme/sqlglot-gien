@@ -283,6 +283,10 @@ WITH t AS (SELECT 1 AS c) SELECT TO_JSON_STRING(t) AS _col_0 FROM t AS t;
 SELECT DATE_TRUNC(col1, WEEK(MONDAY)), col2 FROM t;
 SELECT DATE_TRUNC(t.col1, WEEK(MONDAY)) AS _col_0, t.col2 AS col2 FROM t AS t;
 
+# execute: false
+SELECT first, second FROM (SELECT 'val' AS col, STACK(2, 1, 2, 3) AS (first, second)) AS tbl;
+SELECT tbl.first AS first, tbl.second AS second FROM (SELECT 'val' AS col, STACK(2, 1, 2, 3) AS (first, second)) AS tbl;
+
 --------------------------------------
 -- Derived tables
 --------------------------------------
@@ -926,11 +930,25 @@ WITH RECURSIVE t AS (SELECT 1 AS c UNION ALL SELECT t.c + 1 AS c FROM t AS t WHE
 SELECT DISTINCT ON (new_col, b + 1, 1) t1.a AS new_col FROM x AS t1 ORDER BY new_col;
 SELECT DISTINCT ON (new_col, t1.b + 1, new_col) t1.a AS new_col FROM x AS t1 ORDER BY new_col;
 
+# title: qualify columns for Aggregate Functions and DISTINCT
+SELECT COALESCE(COUNT(DISTINCT a)) AS a FROM x;
+SELECT COALESCE(COUNT(DISTINCT x.a)) AS a FROM x AS x;
+
 # title: Oracle does not support lateral alias expansion
 # dialect: oracle
 # execute: false
 SELECT a AS b, b AS a FROM c;
 SELECT C.A AS B, C.B AS A FROM C C;
+
+# title: enable aliases expansion for the base case of recursive CTE
+WITH RECURSIVE rec AS (SELECT id, parent_id AS parent, 1 AS level FROM (SELECT 1 AS id, 0 AS parent_id) AS t WHERE parent = 0 UNION ALL SELECT rec.id + 10 AS id, rec.id AS parent, rec.level + 1 AS level FROM rec WHERE level < 3) SELECT * FROM rec;
+WITH RECURSIVE rec AS (SELECT t.id AS id, t.parent_id AS parent, 1 AS level FROM (SELECT 1 AS id, 0 AS parent_id) AS t WHERE t.parent_id = 0 UNION ALL SELECT rec.id + 10 AS id, rec.id AS parent, rec.level + 1 AS level FROM rec AS rec WHERE rec.level < 3) SELECT rec.id AS id, rec.parent AS parent, rec.level AS level FROM rec AS rec;
+
+WITH RECURSIVE rec AS (SELECT id, parent_id AS parent, 1 AS level FROM (SELECT 1 AS id, 0 AS parent_id) AS t WHERE parent = 0 UNION ALL SELECT num, val AS x, 2 AS level FROM (SELECT 2 AS num, 1 AS val) AS s WHERE x = 1 UNION ALL SELECT rec.id + 10 AS id, rec.id AS parent, rec.level + 1 AS level FROM rec WHERE rec.level < 3) SELECT * FROM rec ORDER BY rec.id;
+WITH RECURSIVE rec AS (SELECT t.id AS id, t.parent_id AS parent, 1 AS level FROM (SELECT 1 AS id, 0 AS parent_id) AS t WHERE t.parent_id = 0 UNION ALL SELECT s.num AS num, s.val AS x, 2 AS level FROM (SELECT 2 AS num, 1 AS val) AS s WHERE s.val = 1 UNION ALL SELECT rec.id + 10 AS id, rec.id AS parent, rec.level + 1 AS level FROM rec AS rec WHERE rec.level < 3) SELECT rec.id AS id, rec.parent AS parent, rec.level AS level FROM rec AS rec ORDER BY rec.id;
+
+WITH RECURSIVE t(c) AS (SELECT 1 AS c UNION ALL SELECT * FROM (SELECT c + 1 AS c FROM t WHERE c <= 3 UNION ALL SELECT c + 2 AS c FROM t WHERE c <= 3)) SELECT c FROM t ORDER BY c;
+WITH RECURSIVE t(c) AS (SELECT 1 AS c UNION ALL SELECT _q_0.c AS c FROM (SELECT t.c + 1 AS c FROM t AS t WHERE t.c <= 3 UNION ALL SELECT t.c + 2 AS c FROM t AS t WHERE t.c <= 3) AS _q_0) SELECT t.c AS c FROM t AS t ORDER BY c;
 
 --------------------------------------
 -- Wrapped tables / join constructs

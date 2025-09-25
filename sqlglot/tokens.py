@@ -80,10 +80,15 @@ class TokenType(AutoName):
     AT_GT = auto()
     DOLLAR = auto()
     PARAMETER = auto()
+    SESSION = auto()
     SESSION_PARAMETER = auto()
     DAMP = auto()
     XOR = auto()
     DSTAR = auto()
+    QMARK_AMP = auto()
+    QMARK_PIPE = auto()
+    HASH_DASH = auto()
+    EXCLAMATION = auto()
 
     URI_START = auto()
 
@@ -238,7 +243,6 @@ class TokenType(AutoName):
     # keywords
     ALIAS = auto()
     ALTER = auto()
-    ALWAYS = auto()
     ALL = auto()
     ANTI = auto()
     ANY = auto()
@@ -315,6 +319,7 @@ class TokenType(AutoName):
     INDEX = auto()
     INNER = auto()
     INSERT = auto()
+    INSTALL = auto()
     INTERSECT = auto()
     INTERVAL = auto()
     INTO = auto()
@@ -381,6 +386,7 @@ class TokenType(AutoName):
     RENAME = auto()
     REPLACE = auto()
     RETURNING = auto()
+    REVOKE = auto()
     REFERENCES = auto()
     RIGHT = auto()
     RLIKE = auto()
@@ -399,6 +405,7 @@ class TokenType(AutoName):
     SIMILAR_TO = auto()
     SOME = auto()
     SORT_BY = auto()
+    SOUNDS_LIKE = auto()
     START_WITH = auto()
     STORAGE_INTEGRATION = auto()
     STRAIGHT_JOIN = auto()
@@ -431,7 +438,9 @@ class TokenType(AutoName):
     DISABLE = auto()
     NOVALIDATE = auto()
     DISTRIBUTED = auto()
-    DISTRIBUTED_BY = auto()
+    UTC_DATE = auto()
+    UTC_TIME = auto()
+    UTC_TIMESTAMP = auto()
     VERSION_SNAPSHOT = auto()
     TIMESTAMP_SNAPSHOT = auto()
     OPTION = auto()
@@ -444,31 +453,6 @@ class TokenType(AutoName):
     EXTERNAL = auto()
     LOG_INTO = auto()
     REJECT_LIMIT = auto()
-    
-    # Oracle storage parameters
-    PCTFREE = auto()
-    PCTUSED = auto()
-    INITRANS = auto()
-    MAXTRANS = auto()
-    SEGMENT = auto()
-    CREATION = auto()
-    IMMEDIATE = auto()
-    DEFERRED = auto()
-    NOCOMPRESS = auto()
-    COMPRESS = auto()
-    LOGGING = auto()
-    NOLOGGING = auto()
-    FREELISTS = auto()
-    FREELIST = auto()
-    GROUPS = auto()
-    BUFFER_POOL = auto()
-    FLASH_CACHE = auto()
-    CELL_FLASH_CACHE = auto()
-    RECYCLE = auto()
-    NONE = auto()
-    COMPUTE = auto()
-    STATISTICS = auto()
-    TABLESPACE = auto()
 
     # sentinel
     HIVE_TOKEN_STREAM = auto()
@@ -747,7 +731,6 @@ class Tokenizer(metaclass=_Tokenizer):
         "~~*": TokenType.ILIKE,
         "~*": TokenType.IRLIKE,
         "ALL": TokenType.ALL,
-        "ALWAYS": TokenType.ALWAYS,
         "AND": TokenType.AND,
         "ANTI": TokenType.ANTI,
         "ANY": TokenType.ANY,
@@ -851,7 +834,6 @@ class Tokenizer(metaclass=_Tokenizer):
         "PARTITION BY": TokenType.PARTITION_BY,
         "PARTITIONED BY": TokenType.PARTITION_BY,
         "PARTITIONED_BY": TokenType.PARTITION_BY,
-        "DISTRIBUTED BY": TokenType.DISTRIBUTED_BY,
         "PERCENT": TokenType.PERCENT,
         "PIVOT": TokenType.PIVOT,
         "PRAGMA": TokenType.PRAGMA,
@@ -874,6 +856,7 @@ class Tokenizer(metaclass=_Tokenizer):
         "SCHEMA": TokenType.SCHEMA,
         "SELECT": TokenType.SELECT,
         "SEMI": TokenType.SEMI,
+        "SESSION": TokenType.SESSION,
         "SET": TokenType.SET,
         "SETTINGS": TokenType.SETTINGS,
         "SHOW": TokenType.SHOW,
@@ -1015,6 +998,7 @@ class Tokenizer(metaclass=_Tokenizer):
         "COMMENT": TokenType.COMMENT,
         "EXPLAIN": TokenType.COMMAND,
         "GRANT": TokenType.GRANT,
+        "REVOKE": TokenType.REVOKE,
         "OPTIMIZE": TokenType.COMMAND,
         "PREPARE": TokenType.COMMAND,
         "VACUUM": TokenType.COMMAND,
@@ -1697,7 +1681,7 @@ class Tokenizer(metaclass=_Tokenizer):
         text = self._extract_string(end, raw_string=token_type == TokenType.RAW_STRING)
 
         # 对于数字字符串（十六进制、二进制），验证其有效性
-        if base:
+        if base and text:
             try:
                 # 尝试将字符串转换为指定进制的数字
                 int(text, base)
