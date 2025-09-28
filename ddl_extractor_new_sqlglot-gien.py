@@ -2008,7 +2008,7 @@ if __name__ == "__main__":
     # folder = '/Users/ynkang/Downloads/抽取代码信息/DDL/failed/DWS_0813.sql'
     # folder = '/Users/ynkang/Downloads/抽取代码信息/DDL/failed/DWS_index.sql'
     # folder = '/Users/ynkang/Downloads/抽取代码信息/DDL/failed/DWS_test.sql'
-    folder = '/Users/ynkang/Downloads/抽取代码信息/DDL/failed/OceanBase-mysql-0910.sql'
+    # folder = '/Users/ynkang/Downloads/抽取代码信息/DDL/failed/OceanBase-mysql-0910.sql'
     # folder = '/Users/ynkang/Downloads/抽取代码信息/test/hwmrs_test.sql'
     # folder = './badcases/hudi-Spark.sql'
     # folder = '/Users/ynkang/Downloads/抽取代码信息/DDL/failed/l&Ptest_12025-08-04.sql'
