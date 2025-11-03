@@ -144,3 +144,9 @@ sqlglot/_version.py
 
 # Emacs files
 *~
+
+.git
+.git/
+.venv
+.venv/
+.vscode/.vscode
