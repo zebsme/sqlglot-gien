@@ -1,6 +1,353 @@
 Changelog
 =========
 
+## [v27.29.0] - 2025-10-29
+### :boom: BREAKING CHANGES
+- due to [`5242cdd`](https://github.com/tobymao/sqlglot/commit/5242cddf487e367e7f543ca19d9bccae858f36ac) - annotate type for bq LENGTH *(commit by [@geooo109](https://github.com/geooo109))*:
+
+  annotate type for bq LENGTH
+
+- due to [`0fc6dbf`](https://github.com/tobymao/sqlglot/commit/0fc6dbf2e7b611fa0977e3c3e61be1cc84bcf4a9) - add GREATEST_IGNORE_NULLS function support *(PR [#6161](https://github.com/tobymao/sqlglot/pull/6161) by [@fivetran-ashashankar](https://github.com/fivetran-ashashankar))*:
+
+  add GREATEST_IGNORE_NULLS function support (#6161)
+
+- due to [`d382a31`](https://github.com/tobymao/sqlglot/commit/d382a3106d5ce2e9b75527aacd4a37d1f8e16d18) - simplify double negation only if the inner expr is BOOLEAN *(PR [#6151](https://github.com/tobymao/sqlglot/pull/6151) by [@geooo109](https://github.com/geooo109))*:
+
+  simplify double negation only if the inner expr is BOOLEAN (#6151)
+
+- due to [`bcf6c89`](https://github.com/tobymao/sqlglot/commit/bcf6c89a47abd3c2c4383d1c908f892b6619b6fa) - add type annotation tests for snowflake BOOLAND *(PR [#6153](https://github.com/tobymao/sqlglot/pull/6153) by [@fivetran-felixhuang](https://github.com/fivetran-felixhuang))*:
+
+  add type annotation tests for snowflake BOOLAND (#6153)
+
+- due to [`52d1eec`](https://github.com/tobymao/sqlglot/commit/52d1eecaad505703e8b22dcfe8954652f57985b6) - Annotate type for snowflake TIMESTAMP_FROM_PARTS function *(PR [#6139](https://github.com/tobymao/sqlglot/pull/6139) by [@fivetran-amrutabhimsenayachit](https://github.com/fivetran-amrutabhimsenayachit))*:
+
+  Annotate type for snowflake TIMESTAMP_FROM_PARTS function (#6139)
+
+- due to [`8651fe6`](https://github.com/tobymao/sqlglot/commit/8651fe6526dea865c0d54d6d53086359a7835d32) - annotate types for BOOLOR *(PR [#6159](https://github.com/tobymao/sqlglot/pull/6159) by [@fivetran-felixhuang](https://github.com/fivetran-felixhuang))*:
+
+  annotate types for BOOLOR (#6159)
+
+- due to [`812ba9a`](https://github.com/tobymao/sqlglot/commit/812ba9abad8247df81c8f8b514336c8766292112) - Annotate type for snowflake date parts functions *(PR [#6158](https://github.com/tobymao/sqlglot/pull/6158) by [@fivetran-MichaelLee](https://github.com/fivetran-MichaelLee))*:
+
+  Annotate type for snowflake date parts functions (#6158)
+
+- due to [`9f8c123`](https://github.com/tobymao/sqlglot/commit/9f8c123ae44249e274334d0aa551ac33814f2b32) - make qualify table callback more generic *(PR [#6171](https://github.com/tobymao/sqlglot/pull/6171) by [@tobymao](https://github.com/tobymao))*:
+
+  make qualify table callback more generic (#6171)
+
+- due to [`74b4e7c`](https://github.com/tobymao/sqlglot/commit/74b4e7c311e9d4ff39ce2e4d91940eced96aa32f) - fix type annotation for Snowflake BOOLOR and BOOLAND *(PR [#6169](https://github.com/tobymao/sqlglot/pull/6169) by [@fivetran-felixhuang](https://github.com/fivetran-felixhuang))*:
+
+  fix type annotation for Snowflake BOOLOR and BOOLAND (#6169)
+
+- due to [`ef87520`](https://github.com/tobymao/sqlglot/commit/ef875204596b8529f3358025c7a61d757a999bdc) - Transpile `REGEXP_REPLACE` with 'g' option *(PR [#6174](https://github.com/tobymao/sqlglot/pull/6174) by [@VaggelisD](https://github.com/VaggelisD))*:
+
+  Transpile `REGEXP_REPLACE` with 'g' option (#6174)
+
+- due to [`93071e2`](https://github.com/tobymao/sqlglot/commit/93071e255406f62ea83dd89a3be4871b7edfb3fe) - Fix simplify_parens from removing negated *(PR [#6194](https://github.com/tobymao/sqlglot/pull/6194) by [@VaggelisD](https://github.com/VaggelisD))*:
+
+  Fix simplify_parens from removing negated (#6194)
+
+- due to [`e90168a`](https://github.com/tobymao/sqlglot/commit/e90168a6829b85534edcecec7d0df2a8b1b56fc4) - annotate type for Snowflake's `IS_NULL_VALUE` function *(PR [#6186](https://github.com/tobymao/sqlglot/pull/6186) by [@fivetran-ashashankar](https://github.com/fivetran-ashashankar))*:
+
+  annotate type for Snowflake's `IS_NULL_VALUE` function (#6186)
+
+- due to [`c93b535`](https://github.com/tobymao/sqlglot/commit/c93b5354827282c806899c36b11e7a7598e96e38) - annotate type for LEAST_IGNORE_NULLS *(PR [#6196](https://github.com/tobymao/sqlglot/pull/6196) by [@fivetran-ashashankar](https://github.com/fivetran-ashashankar))*:
+
+  annotate type for LEAST_IGNORE_NULLS (#6196)
+
+- due to [`f60c71f`](https://github.com/tobymao/sqlglot/commit/f60c71fb03db91bfe90430d032ac16f4945d5dff) - annotate types for REGR_VALX *(PR [#6198](https://github.com/tobymao/sqlglot/pull/6198) by [@fivetran-felixhuang](https://github.com/fivetran-felixhuang))*:
+
+  annotate types for REGR_VALX (#6198)
+
+- due to [`b82c571`](https://github.com/tobymao/sqlglot/commit/b82c57131707297abe174539023b9cb62b7cd6c7) - annotate types for REGR_VALY *(PR [#6206](https://github.com/tobymao/sqlglot/pull/6206) by [@fivetran-felixhuang](https://github.com/fivetran-felixhuang))*:
+
+  annotate types for REGR_VALY (#6206)
+
+
+### :sparkles: New Features
+- [`5242cdd`](https://github.com/tobymao/sqlglot/commit/5242cddf487e367e7f543ca19d9bccae858f36ac) - **optimizer**: annotate type for bq LENGTH *(commit by [@geooo109](https://github.com/geooo109))*
+- [`0fc6dbf`](https://github.com/tobymao/sqlglot/commit/0fc6dbf2e7b611fa0977e3c3e61be1cc84bcf4a9) - **snowflake**: add GREATEST_IGNORE_NULLS function support *(PR [#6161](https://github.com/tobymao/sqlglot/pull/6161) by [@fivetran-ashashankar](https://github.com/fivetran-ashashankar))*
+- [`54ecadc`](https://github.com/tobymao/sqlglot/commit/54ecadc57b8f1e87fd2a2ba35a5366d75231ea85) - **duckdb**: support `KV_METADATA` in `COPY` statement closes [#6165](https://github.com/tobymao/sqlglot/pull/6165) *(commit by [@georgesittas](https://github.com/georgesittas))*
+- [`e241964`](https://github.com/tobymao/sqlglot/commit/e2419642a4966a4da194147aa488793eae152af4) - **duckdb**: support `USING` condition for `MERGE` closes [#6162](https://github.com/tobymao/sqlglot/pull/6162) *(commit by [@georgesittas](https://github.com/georgesittas))*
+- [`bcf6c89`](https://github.com/tobymao/sqlglot/commit/bcf6c89a47abd3c2c4383d1c908f892b6619b6fa) - **optimizer**: add type annotation tests for snowflake BOOLAND *(PR [#6153](https://github.com/tobymao/sqlglot/pull/6153) by [@fivetran-felixhuang](https://github.com/fivetran-felixhuang))*
+- [`52d1eec`](https://github.com/tobymao/sqlglot/commit/52d1eecaad505703e8b22dcfe8954652f57985b6) - **optimizer**: Annotate type for snowflake TIMESTAMP_FROM_PARTS function *(PR [#6139](https://github.com/tobymao/sqlglot/pull/6139) by [@fivetran-amrutabhimsenayachit](https://github.com/fivetran-amrutabhimsenayachit))*
+- [`8651fe6`](https://github.com/tobymao/sqlglot/commit/8651fe6526dea865c0d54d6d53086359a7835d32) - **optimizer**: annotate types for BOOLOR *(PR [#6159](https://github.com/tobymao/sqlglot/pull/6159) by [@fivetran-felixhuang](https://github.com/fivetran-felixhuang))*
+- [`812ba9a`](https://github.com/tobymao/sqlglot/commit/812ba9abad8247df81c8f8b514336c8766292112) - **optimizer**: Annotate type for snowflake date parts functions *(PR [#6158](https://github.com/tobymao/sqlglot/pull/6158) by [@fivetran-MichaelLee](https://github.com/fivetran-MichaelLee))*
+- [`9f8c123`](https://github.com/tobymao/sqlglot/commit/9f8c123ae44249e274334d0aa551ac33814f2b32) - make qualify table callback more generic *(PR [#6171](https://github.com/tobymao/sqlglot/pull/6171) by [@tobymao](https://github.com/tobymao))*
+- [`74b4e7c`](https://github.com/tobymao/sqlglot/commit/74b4e7c311e9d4ff39ce2e4d91940eced96aa32f) - **optimizer**: fix type annotation for Snowflake BOOLOR and BOOLAND *(PR [#6169](https://github.com/tobymao/sqlglot/pull/6169) by [@fivetran-felixhuang](https://github.com/fivetran-felixhuang))*
+- [`e90168a`](https://github.com/tobymao/sqlglot/commit/e90168a6829b85534edcecec7d0df2a8b1b56fc4) - **optimizer**: annotate type for Snowflake's `IS_NULL_VALUE` function *(PR [#6186](https://github.com/tobymao/sqlglot/pull/6186) by [@fivetran-ashashankar](https://github.com/fivetran-ashashankar))*
+- [`cea2595`](https://github.com/tobymao/sqlglot/commit/cea25952c98e70f2a4c35e675fe7ee4df0af02cd) - **duckdb**: Transpile DATE function from BQ->DuckDB *(PR [#6178](https://github.com/tobymao/sqlglot/pull/6178) by [@fivetran-amrutabhimsenayachit](https://github.com/fivetran-amrutabhimsenayachit))*
+- [`00aaa47`](https://github.com/tobymao/sqlglot/commit/00aaa47feff1cf9e69320074c35d9adfc8538026) - **duckDB**: Transpile BigQuery's CURRENT_DATE (Conversion) function to DuckDB *(PR [#6189](https://github.com/tobymao/sqlglot/pull/6189) by [@fivetran-amrutabhimsenayachit](https://github.com/fivetran-amrutabhimsenayachit))*
+- [`c93b535`](https://github.com/tobymao/sqlglot/commit/c93b5354827282c806899c36b11e7a7598e96e38) - **snowflake**: annotate type for LEAST_IGNORE_NULLS *(PR [#6196](https://github.com/tobymao/sqlglot/pull/6196) by [@fivetran-ashashankar](https://github.com/fivetran-ashashankar))*
+- [`d2162fb`](https://github.com/tobymao/sqlglot/commit/d2162fbece0747b8ee42fa1f78e26baa0c944d41) - check same ref on Expression.__eq__ *(PR [#6200](https://github.com/tobymao/sqlglot/pull/6200) by [@georgesittas](https://github.com/georgesittas))*
+- [`f60c71f`](https://github.com/tobymao/sqlglot/commit/f60c71fb03db91bfe90430d032ac16f4945d5dff) - **optimizer**: annotate types for REGR_VALX *(PR [#6198](https://github.com/tobymao/sqlglot/pull/6198) by [@fivetran-felixhuang](https://github.com/fivetran-felixhuang))*
+- [`42e0ae4`](https://github.com/tobymao/sqlglot/commit/42e0ae43b3531bf6c593bcac2ece2ab1d969e5e1) - **duckdb**: transpile BigQuery function TIMESTAMP_SUB to DuckDB *(PR [#6202](https://github.com/tobymao/sqlglot/pull/6202) by [@toriwei](https://github.com/toriwei))*
+- [`b82c571`](https://github.com/tobymao/sqlglot/commit/b82c57131707297abe174539023b9cb62b7cd6c7) - **snowflake**: annotate types for REGR_VALY *(PR [#6206](https://github.com/tobymao/sqlglot/pull/6206) by [@fivetran-felixhuang](https://github.com/fivetran-felixhuang))*
+
+### :bug: Bug Fixes
+- [`3acf796`](https://github.com/tobymao/sqlglot/commit/3acf7965105a098fea6336df0c304d94acbd05ec) - **duckdb**: Allow ESCAPE NULL *(PR [#6164](https://github.com/tobymao/sqlglot/pull/6164) by [@VaggelisD](https://github.com/VaggelisD))*
+  - :arrow_lower_right: *fixes issue [#6160](https://github.com/tobymao/sqlglot/issues/6160) opened by [@denis-komarov](https://github.com/denis-komarov)*
+- [`f7f1fca`](https://github.com/tobymao/sqlglot/commit/f7f1fca39a75df16ebb93f038e6277a25b8be6b9) - **duckdb**: Support positional index in list comprehension *(PR [#6163](https://github.com/tobymao/sqlglot/pull/6163) by [@VaggelisD](https://github.com/VaggelisD))*
+  - :arrow_lower_right: *fixes issue [#6156](https://github.com/tobymao/sqlglot/issues/6156) opened by [@denis-komarov](https://github.com/denis-komarov)*
+- [`d382a31`](https://github.com/tobymao/sqlglot/commit/d382a3106d5ce2e9b75527aacd4a37d1f8e16d18) - **optimizer**: simplify double negation only if the inner expr is BOOLEAN *(PR [#6151](https://github.com/tobymao/sqlglot/pull/6151) by [@geooo109](https://github.com/geooo109))*
+  - :arrow_lower_right: *fixes issue [#6129](https://github.com/tobymao/sqlglot/issues/6129) opened by [@dllggyx](https://github.com/dllggyx)*
+- [`dfe6b3c`](https://github.com/tobymao/sqlglot/commit/dfe6b3c8e6db40e22e626e2d56e9a7008dd75c32) - **optimizer**: Disambiguate JOIN ON columns during qualify *(PR [#6155](https://github.com/tobymao/sqlglot/pull/6155) by [@VaggelisD](https://github.com/VaggelisD))*
+  - :arrow_lower_right: *fixes issue [#6132](https://github.com/tobymao/sqlglot/issues/6132) opened by [@Fosly](https://github.com/Fosly)*
+- [`f267ece`](https://github.com/tobymao/sqlglot/commit/f267ecea92b0751f6b35a4ad0c70fe6754e49038) - normalize before qualifying tables *(PR [#6176](https://github.com/tobymao/sqlglot/pull/6176) by [@georgesittas](https://github.com/georgesittas))*
+  - :arrow_lower_right: *fixes issue [#6167](https://github.com/tobymao/sqlglot/issues/6167) opened by [@schelip](https://github.com/schelip)*
+- [`ef87520`](https://github.com/tobymao/sqlglot/commit/ef875204596b8529f3358025c7a61d757a999bdc) - **postgres, duckdb**: Transpile `REGEXP_REPLACE` with 'g' option *(PR [#6174](https://github.com/tobymao/sqlglot/pull/6174) by [@VaggelisD](https://github.com/VaggelisD))*
+  - :arrow_lower_right: *fixes issue [#6170](https://github.com/tobymao/sqlglot/issues/6170) opened by [@kyle-cheung](https://github.com/kyle-cheung)*
+- [`51a8d70`](https://github.com/tobymao/sqlglot/commit/51a8d700a9602278d1e98425af0fa87d02c739fe) - **parser**: allow LIMIT % OFFSET *(PR [#6184](https://github.com/tobymao/sqlglot/pull/6184) by [@toriwei](https://github.com/toriwei))*
+  - :arrow_lower_right: *fixes issue [#6166](https://github.com/tobymao/sqlglot/issues/6166) opened by [@denis-komarov](https://github.com/denis-komarov)*
+- [`8bf0a9f`](https://github.com/tobymao/sqlglot/commit/8bf0a9fe8e167984dc2e7b43d52d3850e063da3f) - **duckdb**: Cast literal arg to timestamp for epoch_us function *(PR [#6190](https://github.com/tobymao/sqlglot/pull/6190) by [@vchan](https://github.com/vchan))*
+- [`93071e2`](https://github.com/tobymao/sqlglot/commit/93071e255406f62ea83dd89a3be4871b7edfb3fe) - **optimizer**: Fix simplify_parens from removing negated *(PR [#6194](https://github.com/tobymao/sqlglot/pull/6194) by [@VaggelisD](https://github.com/VaggelisD))*
+  - :arrow_lower_right: *fixes issue [#6179](https://github.com/tobymao/sqlglot/issues/6179) opened by [@dllggyx](https://github.com/dllggyx)*
+- [`2ac3a03`](https://github.com/tobymao/sqlglot/commit/2ac3a03409d9239d0cf7fb265843d7837a0a3fcd) - **lineage**: correct star detection and add join star tests *(PR [#6185](https://github.com/tobymao/sqlglot/pull/6185) by [@lancewl](https://github.com/lancewl))*
+- [`c9ae2eb`](https://github.com/tobymao/sqlglot/commit/c9ae2ebdb86abdb767f2fcb00da0b6277b4aea45) - **duckdb**: transpile BigQuery TIMESTAMP_ADD to duckdb *(PR [#6188](https://github.com/tobymao/sqlglot/pull/6188) by [@toriwei](https://github.com/toriwei))*
+- [`ba0e17a`](https://github.com/tobymao/sqlglot/commit/ba0e17a25af417e24162bfab49c3074454a5c1a8) - **snowflake**: Transpile `ARRAY_CONCAT_AGG` to `ARRAY_FLATTEN(ARRAY_AGG(...))` *(PR [#6192](https://github.com/tobymao/sqlglot/pull/6192) by [@ozadari](https://github.com/ozadari))*
+- [`730e4cc`](https://github.com/tobymao/sqlglot/commit/730e4cc5b77bff9135667193cc0a65c24cdfb6b5) - **trino**: Allow 2nd arg for FIRST/LAST functions *(PR [#6205](https://github.com/tobymao/sqlglot/pull/6205) by [@VaggelisD](https://github.com/VaggelisD))*
+  - :arrow_lower_right: *fixes issue [#6204](https://github.com/tobymao/sqlglot/issues/6204) opened by [@Harmuth94](https://github.com/Harmuth94)*
+
+### :recycle: Refactors
+- [`6d775fd`](https://github.com/tobymao/sqlglot/commit/6d775fdb6091cb866c27c0f1141514b23d689284) - snowflake GREATEST type checks *(commit by [@geooo109](https://github.com/geooo109))*
+- [`e797fb1`](https://github.com/tobymao/sqlglot/commit/e797fb105f7fa4e7bd42698eda71037cae9fd155) - update `LIKE` operator when using functional syntax with spark dialect *(PR [#6173](https://github.com/tobymao/sqlglot/pull/6173) by [@themattmorris](https://github.com/themattmorris))*
+  - :arrow_lower_right: *addresses issue [#6172](https://github.com/tobymao/sqlglot/issues/6172) opened by [@themattmorris](https://github.com/themattmorris)*
+
+### :wrench: Chores
+- [`aca106c`](https://github.com/tobymao/sqlglot/commit/aca106c660b8aaf229065ec5c5a4a80d10e8daf6) - **optimizer**: add type annotation tests for snowflake GREATEST *(PR [#6157](https://github.com/tobymao/sqlglot/pull/6157) by [@fivetran-ashashankar](https://github.com/fivetran-ashashankar))*
+- [`f763604`](https://github.com/tobymao/sqlglot/commit/f7636041d7b796545ed923ffd4803521f05fa7ea) - add `IS [NOT]` tests *(commit by [@georgesittas](https://github.com/georgesittas))*
+- [`1ab5854`](https://github.com/tobymao/sqlglot/commit/1ab5854216da591e6036ac103239ac0280e09c3d) - **optimizer**: add snowflake test for [NOT] IN *(PR [#6180](https://github.com/tobymao/sqlglot/pull/6180) by [@fivetran-felixhuang](https://github.com/fivetran-felixhuang))*
+- [`64939ce`](https://github.com/tobymao/sqlglot/commit/64939ce9926f4740387a151311e918e807bfa681) - **optimizer**: add annotation tests for ZEROIFNULL *(PR [#6187](https://github.com/tobymao/sqlglot/pull/6187) by [@fivetran-felixhuang](https://github.com/fivetran-felixhuang))*
+- [`4b6bcdd`](https://github.com/tobymao/sqlglot/commit/4b6bcdd4dc297bd42ad000ffda98d14110565dc9) - **optimizer**: Add tests for snowflake's `NULLIFZERO` *(PR [#6197](https://github.com/tobymao/sqlglot/pull/6197) by [@fivetran-felixhuang](https://github.com/fivetran-felixhuang))*
+- [`ef68075`](https://github.com/tobymao/sqlglot/commit/ef680756c33da180ed2f21fb6113a0123db341c9) - **optimizer**: add annotation tests for NVL2 *(PR [#6208](https://github.com/tobymao/sqlglot/pull/6208) by [@fivetran-felixhuang](https://github.com/fivetran-felixhuang))*
+- [`7f550f2`](https://github.com/tobymao/sqlglot/commit/7f550f22da40d8c1cfc8afb183d6e4dbd50241ea) - **optimizer**: add annotation tests for NVL *(PR [#6207](https://github.com/tobymao/sqlglot/pull/6207) by [@fivetran-felixhuang](https://github.com/fivetran-felixhuang))*
+
+
+## [v27.28.0] - 2025-10-21
+### :boom: BREAKING CHANGES
+- due to [`2238ac2`](https://github.com/tobymao/sqlglot/commit/2238ac27478bd272ba39928bbec1075c4191ee1b) - transpile timestamp literals in datediff fixes [#6083](https://github.com/tobymao/sqlglot/pull/6083) *(PR [#6086](https://github.com/tobymao/sqlglot/pull/6086) by [@georgesittas](https://github.com/georgesittas))*:
+
+  transpile timestamp literals in datediff fixes #6083 (#6086)
+
+- due to [`c49ba0e`](https://github.com/tobymao/sqlglot/commit/c49ba0eee21f7776703d2a26c6641b4a32a1cff7) - Annotate type for snowflake WIDTH_BUCKET function *(PR [#6078](https://github.com/tobymao/sqlglot/pull/6078) by [@fivetran-amrutabhimsenayachit](https://github.com/fivetran-amrutabhimsenayachit))*:
+
+  Annotate type for snowflake WIDTH_BUCKET function (#6078)
+
+- due to [`fbc1f13`](https://github.com/tobymao/sqlglot/commit/fbc1f1335eecaaaab4fc93ddbb74611a4df0aea7) - annotate type for Snowflake CONVERT_TIMEZONE function *(PR [#6076](https://github.com/tobymao/sqlglot/pull/6076) by [@fivetran-BradfordPaskewitz](https://github.com/fivetran-BradfordPaskewitz))*:
+
+  annotate type for Snowflake CONVERT_TIMEZONE function (#6076)
+
+- due to [`70e977c`](https://github.com/tobymao/sqlglot/commit/70e977c5edfb495529d38a9096cb40762a9b5d7b) - annotate type for Snowflake DATE_TRUNC function *(PR [#6080](https://github.com/tobymao/sqlglot/pull/6080) by [@fivetran-BradfordPaskewitz](https://github.com/fivetran-BradfordPaskewitz))*:
+
+  annotate type for Snowflake DATE_TRUNC function (#6080)
+
+- due to [`e9cf146`](https://github.com/tobymao/sqlglot/commit/e9cf146a4a6cd78f6a59c195e7ec12240b836e5e) - annotate type for Snowflake DATE_PART function *(PR [#6079](https://github.com/tobymao/sqlglot/pull/6079) by [@fivetran-BradfordPaskewitz](https://github.com/fivetran-BradfordPaskewitz))*:
+
+  annotate type for Snowflake DATE_PART function (#6079)
+
+- due to [`5109890`](https://github.com/tobymao/sqlglot/commit/510989043d18baa17502a971262462814a2eb5be) - VALUES with ORDER BY/LIMIT/OFFSET *(PR [#6094](https://github.com/tobymao/sqlglot/pull/6094) by [@geooo109](https://github.com/geooo109))*:
+
+  VALUES with ORDER BY/LIMIT/OFFSET (#6094)
+
+- due to [`6fe5824`](https://github.com/tobymao/sqlglot/commit/6fe58247888c326093618657fb027e482d82d107) - Annotate type for hour, minute, second functions *(PR [#6100](https://github.com/tobymao/sqlglot/pull/6100) by [@fivetran-amrutabhimsenayachit](https://github.com/fivetran-amrutabhimsenayachit))*:
+
+  Annotate type for hour, minute, second functions (#6100)
+
+- due to [`a4d07a0`](https://github.com/tobymao/sqlglot/commit/a4d07a07eefbdaf88d30df2310a9533afdc75a82) - Annotate type for snowflake EXTRACT function *(PR [#6099](https://github.com/tobymao/sqlglot/pull/6099) by [@fivetran-amrutabhimsenayachit](https://github.com/fivetran-amrutabhimsenayachit))*:
+
+  Annotate type for snowflake EXTRACT function (#6099)
+
+- due to [`483770b`](https://github.com/tobymao/sqlglot/commit/483770b816fab14b7eb7222974ed2c99045302a7) - Annotate type for snowflake TIME_SLICE function *(PR [#6098](https://github.com/tobymao/sqlglot/pull/6098) by [@fivetran-amrutabhimsenayachit](https://github.com/fivetran-amrutabhimsenayachit))*:
+
+  Annotate type for snowflake TIME_SLICE function (#6098)
+
+- due to [`06f40f9`](https://github.com/tobymao/sqlglot/commit/06f40f900ce693ba4203514e422cba8cda0dbb07) - don't simplify x XOR x due to NULL semantics *(PR [#6115](https://github.com/tobymao/sqlglot/pull/6115) by [@geooo109](https://github.com/geooo109))*:
+
+  don't simplify x XOR x due to NULL semantics (#6115)
+
+- due to [`c286cee`](https://github.com/tobymao/sqlglot/commit/c286cee54ab93e1fd0b3be658f7e767e3e00afe9) - Annotate type for snowflake MONTHNAME function *(PR [#6116](https://github.com/tobymao/sqlglot/pull/6116) by [@fivetran-amrutabhimsenayachit](https://github.com/fivetran-amrutabhimsenayachit))*:
+
+  Annotate type for snowflake MONTHNAME function (#6116)
+
+- due to [`1a34788`](https://github.com/tobymao/sqlglot/commit/1a34788025bdd8a018c4bb9214f72152e68bdd14) - Annotate type for snowflake PREVIOUS_DAY function *(PR [#6117](https://github.com/tobymao/sqlglot/pull/6117) by [@fivetran-amrutabhimsenayachit](https://github.com/fivetran-amrutabhimsenayachit))*:
+
+  Annotate type for snowflake PREVIOUS_DAY function (#6117)
+
+- due to [`533faf8`](https://github.com/tobymao/sqlglot/commit/533faf87b6df351070b565dd1fe9ce4e13b6c46e) - transpile duckdb `READ_PARQUET` to `parquet.<path>` closes [#6122](https://github.com/tobymao/sqlglot/pull/6122) *(commit by [@georgesittas](https://github.com/georgesittas))*:
+
+  transpile duckdb `READ_PARQUET` to `parquet.<path>` closes #6122
+
+- due to [`cd4e557`](https://github.com/tobymao/sqlglot/commit/cd4e557658b1384f36c9a1ef9da5a09b893229b1) - Annotate type for snowflake RANDOM function *(PR [#6124](https://github.com/tobymao/sqlglot/pull/6124) by [@fivetran-felixhuang](https://github.com/fivetran-felixhuang))*:
+
+  Annotate type for snowflake RANDOM function (#6124)
+
+- due to [`fe63d84`](https://github.com/tobymao/sqlglot/commit/fe63d84f1bd365b22221f348d79c0546aa3118b0) - annotate type for Snowflake MONTHS_BETWEEN function *(PR [#6120](https://github.com/tobymao/sqlglot/pull/6120) by [@fivetran-MichaelLee](https://github.com/fivetran-MichaelLee))*:
+
+  annotate type for Snowflake MONTHS_BETWEEN function (#6120)
+
+- due to [`598d09b`](https://github.com/tobymao/sqlglot/commit/598d09b036d938c90a44955d67175ea868090ba2) - annotate type for Snowflake DATEADD function *(PR [#6089](https://github.com/tobymao/sqlglot/pull/6089) by [@fivetran-BradfordPaskewitz](https://github.com/fivetran-BradfordPaskewitz))*:
+
+  annotate type for Snowflake DATEADD function (#6089)
+
+- due to [`b98bcee`](https://github.com/tobymao/sqlglot/commit/b98bcee148ba426816e166dbfa9ba8e0979aae21) - Annotate type for snowflake next_day function *(PR [#6125](https://github.com/tobymao/sqlglot/pull/6125) by [@fivetran-ashashankar](https://github.com/fivetran-ashashankar))*:
+
+  Annotate type for snowflake next_day function (#6125)
+
+- due to [`e2129c6`](https://github.com/tobymao/sqlglot/commit/e2129c6766ca1f10ff6663bec98be984abb33c91) - Do not consider BIT_COUNT an aggregate function *(PR [#6135](https://github.com/tobymao/sqlglot/pull/6135) by [@VaggelisD](https://github.com/VaggelisD))*:
+
+  Do not consider BIT_COUNT an aggregate function (#6135)
+
+- due to [`d136414`](https://github.com/tobymao/sqlglot/commit/d136414e520270ac9ab2fd8e9df4691d269b3af0) - avoid simplifying AND with NULL *(PR [#6148](https://github.com/tobymao/sqlglot/pull/6148) by [@geooo109](https://github.com/geooo109))*:
+
+  avoid simplifying AND with NULL (#6148)
+
+- due to [`3a334f3`](https://github.com/tobymao/sqlglot/commit/3a334f376b9766b6b99fdf195ae763bb44976ec4) - annotate type for boolnot snowflake function *(PR [#6141](https://github.com/tobymao/sqlglot/pull/6141) by [@fivetran-felixhuang](https://github.com/fivetran-felixhuang))*:
+
+  annotate type for boolnot snowflake function (#6141)
+
+- due to [`99949cc`](https://github.com/tobymao/sqlglot/commit/99949ccd3ff81b524edeae437d874b86250dbb5b) - avoid needlessly copying in lineage *(PR [#6150](https://github.com/tobymao/sqlglot/pull/6150) by [@georgesittas](https://github.com/georgesittas))*:
+
+  avoid needlessly copying in lineage (#6150)
+
+- due to [`4e36f9d`](https://github.com/tobymao/sqlglot/commit/4e36f9dd6a854b378c9bbf6b2e9811045affc63d) - Annotate type for snowflake TIMEADD function *(PR [#6134](https://github.com/tobymao/sqlglot/pull/6134) by [@fivetran-amrutabhimsenayachit](https://github.com/fivetran-amrutabhimsenayachit))*:
+
+  Annotate type for snowflake TIMEADD function (#6134)
+
+
+### :sparkles: New Features
+- [`c49ba0e`](https://github.com/tobymao/sqlglot/commit/c49ba0eee21f7776703d2a26c6641b4a32a1cff7) - **optimizer**: Annotate type for snowflake WIDTH_BUCKET function *(PR [#6078](https://github.com/tobymao/sqlglot/pull/6078) by [@fivetran-amrutabhimsenayachit](https://github.com/fivetran-amrutabhimsenayachit))*
+- [`fbc1f13`](https://github.com/tobymao/sqlglot/commit/fbc1f1335eecaaaab4fc93ddbb74611a4df0aea7) - **optimizer**: annotate type for Snowflake CONVERT_TIMEZONE function *(PR [#6076](https://github.com/tobymao/sqlglot/pull/6076) by [@fivetran-BradfordPaskewitz](https://github.com/fivetran-BradfordPaskewitz))*
+- [`70e977c`](https://github.com/tobymao/sqlglot/commit/70e977c5edfb495529d38a9096cb40762a9b5d7b) - **optimizer**: annotate type for Snowflake DATE_TRUNC function *(PR [#6080](https://github.com/tobymao/sqlglot/pull/6080) by [@fivetran-BradfordPaskewitz](https://github.com/fivetran-BradfordPaskewitz))*
+- [`e9cf146`](https://github.com/tobymao/sqlglot/commit/e9cf146a4a6cd78f6a59c195e7ec12240b836e5e) - **optimizer**: annotate type for Snowflake DATE_PART function *(PR [#6079](https://github.com/tobymao/sqlglot/pull/6079) by [@fivetran-BradfordPaskewitz](https://github.com/fivetran-BradfordPaskewitz))*
+- [`cdf3b1b`](https://github.com/tobymao/sqlglot/commit/cdf3b1b34dc044064d0a5ba7ff22723b8ae33e5d) - **optimizer**: Annotate type for snowflake add_months function *(PR [#6097](https://github.com/tobymao/sqlglot/pull/6097) by [@fivetran-amrutabhimsenayachit](https://github.com/fivetran-amrutabhimsenayachit))*
+- [`6fe5824`](https://github.com/tobymao/sqlglot/commit/6fe58247888c326093618657fb027e482d82d107) - **optimizer**: Annotate type for hour, minute, second functions *(PR [#6100](https://github.com/tobymao/sqlglot/pull/6100) by [@fivetran-amrutabhimsenayachit](https://github.com/fivetran-amrutabhimsenayachit))*
+- [`483770b`](https://github.com/tobymao/sqlglot/commit/483770b816fab14b7eb7222974ed2c99045302a7) - **optimizer**: Annotate type for snowflake TIME_SLICE function *(PR [#6098](https://github.com/tobymao/sqlglot/pull/6098) by [@fivetran-amrutabhimsenayachit](https://github.com/fivetran-amrutabhimsenayachit))*
+- [`071a995`](https://github.com/tobymao/sqlglot/commit/071a9954aad220c1e13ba7a6714a083058a8e03f) - **tsql**: add support for iso_week on DATEPART *(PR [#6111](https://github.com/tobymao/sqlglot/pull/6111) by [@lBilali](https://github.com/lBilali))*
+  - :arrow_lower_right: *addresses issue [#6110](https://github.com/tobymao/sqlglot/issues/6110) opened by [@lBilali](https://github.com/lBilali)*
+- [`c286cee`](https://github.com/tobymao/sqlglot/commit/c286cee54ab93e1fd0b3be658f7e767e3e00afe9) - **optimizer**: Annotate type for snowflake MONTHNAME function *(PR [#6116](https://github.com/tobymao/sqlglot/pull/6116) by [@fivetran-amrutabhimsenayachit](https://github.com/fivetran-amrutabhimsenayachit))*
+- [`1a34788`](https://github.com/tobymao/sqlglot/commit/1a34788025bdd8a018c4bb9214f72152e68bdd14) - **optimizer**: Annotate type for snowflake PREVIOUS_DAY function *(PR [#6117](https://github.com/tobymao/sqlglot/pull/6117) by [@fivetran-amrutabhimsenayachit](https://github.com/fivetran-amrutabhimsenayachit))*
+- [`533faf8`](https://github.com/tobymao/sqlglot/commit/533faf87b6df351070b565dd1fe9ce4e13b6c46e) - **spark**: transpile duckdb `READ_PARQUET` to `parquet.<path>` closes [#6122](https://github.com/tobymao/sqlglot/pull/6122) *(commit by [@georgesittas](https://github.com/georgesittas))*
+- [`cd4e557`](https://github.com/tobymao/sqlglot/commit/cd4e557658b1384f36c9a1ef9da5a09b893229b1) - **optimizer**: Annotate type for snowflake RANDOM function *(PR [#6124](https://github.com/tobymao/sqlglot/pull/6124) by [@fivetran-felixhuang](https://github.com/fivetran-felixhuang))*
+- [`fe63d84`](https://github.com/tobymao/sqlglot/commit/fe63d84f1bd365b22221f348d79c0546aa3118b0) - **optimizer**: annotate type for Snowflake MONTHS_BETWEEN function *(PR [#6120](https://github.com/tobymao/sqlglot/pull/6120) by [@fivetran-MichaelLee](https://github.com/fivetran-MichaelLee))*
+- [`7cb7598`](https://github.com/tobymao/sqlglot/commit/7cb7598e13260aa45c851dc620b4994ddfa089fe) - **optimizer**: Annotate type for snowflake TIME_FROM_PARTS function *(PR [#6119](https://github.com/tobymao/sqlglot/pull/6119) by [@fivetran-amrutabhimsenayachit](https://github.com/fivetran-amrutabhimsenayachit))*
+- [`598d09b`](https://github.com/tobymao/sqlglot/commit/598d09b036d938c90a44955d67175ea868090ba2) - **optimizer**: annotate type for Snowflake DATEADD function *(PR [#6089](https://github.com/tobymao/sqlglot/pull/6089) by [@fivetran-BradfordPaskewitz](https://github.com/fivetran-BradfordPaskewitz))*
+- [`b98bcee`](https://github.com/tobymao/sqlglot/commit/b98bcee148ba426816e166dbfa9ba8e0979aae21) - **optimizer**: Annotate type for snowflake next_day function *(PR [#6125](https://github.com/tobymao/sqlglot/pull/6125) by [@fivetran-ashashankar](https://github.com/fivetran-ashashankar))*
+- [`fe1927f`](https://github.com/tobymao/sqlglot/commit/fe1927f28600e2d8863a4e7f06e6a21bf6ff7f9c) - **duckdb**: Transpile unix_micros to epoch_us *(PR [#6127](https://github.com/tobymao/sqlglot/pull/6127) by [@vchan](https://github.com/vchan))*
+- [`a531f10`](https://github.com/tobymao/sqlglot/commit/a531f107235c29ac6a7e627a323f00b8ecf7023d) - **duckdb**: transpile TimeSub *(PR [#6142](https://github.com/tobymao/sqlglot/pull/6142) by [@toriwei](https://github.com/toriwei))*
+- [`b1a9dff`](https://github.com/tobymao/sqlglot/commit/b1a9dfff52a0ffbb0b7c8bfedb0a90e245b97851) - make qualify faster by owly resetting scope when needed *(PR [#6081](https://github.com/tobymao/sqlglot/pull/6081) by [@tobymao](https://github.com/tobymao))*
+- [`3a334f3`](https://github.com/tobymao/sqlglot/commit/3a334f376b9766b6b99fdf195ae763bb44976ec4) - **optimizer**: annotate type for boolnot snowflake function *(PR [#6141](https://github.com/tobymao/sqlglot/pull/6141) by [@fivetran-felixhuang](https://github.com/fivetran-felixhuang))*
+- [`4e36f9d`](https://github.com/tobymao/sqlglot/commit/4e36f9dd6a854b378c9bbf6b2e9811045affc63d) - **optimizer**: Annotate type for snowflake TIMEADD function *(PR [#6134](https://github.com/tobymao/sqlglot/pull/6134) by [@fivetran-amrutabhimsenayachit](https://github.com/fivetran-amrutabhimsenayachit))*
+
+### :bug: Bug Fixes
+- [`2238ac2`](https://github.com/tobymao/sqlglot/commit/2238ac27478bd272ba39928bbec1075c4191ee1b) - **duckdb**: transpile timestamp literals in datediff fixes [#6083](https://github.com/tobymao/sqlglot/pull/6083) *(PR [#6086](https://github.com/tobymao/sqlglot/pull/6086) by [@georgesittas](https://github.com/georgesittas))*
+- [`bef541c`](https://github.com/tobymao/sqlglot/commit/bef541cec36f8c4295f815c3f5cd22491738901b) - **parser**: query mods and set ops in FROM-first syntax *(PR [#6092](https://github.com/tobymao/sqlglot/pull/6092) by [@geooo109](https://github.com/geooo109))*
+  - :arrow_lower_right: *fixes issue [#6088](https://github.com/tobymao/sqlglot/issues/6088) opened by [@denis-komarov](https://github.com/denis-komarov)*
+  - :arrow_lower_right: *fixes issue [#6091](https://github.com/tobymao/sqlglot/issues/6091) opened by [@denis-komarov](https://github.com/denis-komarov)*
+  - :arrow_lower_right: *fixes issue [#6093](https://github.com/tobymao/sqlglot/issues/6093) opened by [@denis-komarov](https://github.com/denis-komarov)*
+- [`5109890`](https://github.com/tobymao/sqlglot/commit/510989043d18baa17502a971262462814a2eb5be) - **parser**: VALUES with ORDER BY/LIMIT/OFFSET *(PR [#6094](https://github.com/tobymao/sqlglot/pull/6094) by [@geooo109](https://github.com/geooo109))*
+  - :arrow_lower_right: *fixes issue [#6087](https://github.com/tobymao/sqlglot/issues/6087) opened by [@denis-komarov](https://github.com/denis-komarov)*
+- [`4b062c8`](https://github.com/tobymao/sqlglot/commit/4b062c850bd9867be0d622f3f526762fa2b72302) - consume more syntax for cubes/rollups fixes [#6101](https://github.com/tobymao/sqlglot/pull/6101) *(commit by [@georgesittas](https://github.com/georgesittas))*
+- [`f00866a`](https://github.com/tobymao/sqlglot/commit/f00866aeb8b7f51e27173c688225fe16d777eb1a) - **duckdb**: 1 arg FORMAT func *(PR [#6109](https://github.com/tobymao/sqlglot/pull/6109) by [@geooo109](https://github.com/geooo109))*
+  - :arrow_lower_right: *fixes issue [#6108](https://github.com/tobymao/sqlglot/issues/6108) opened by [@erindru](https://github.com/erindru)*
+- [`77dfd5a`](https://github.com/tobymao/sqlglot/commit/77dfd5a41bb9ce5450e0f6b7a78c953c8ade14d5) - lineage does not modify sql input if expression *(PR [#6113](https://github.com/tobymao/sqlglot/pull/6113) by [@snovik75](https://github.com/snovik75))*
+  - :arrow_lower_right: *fixes issue [#6112](https://github.com/tobymao/sqlglot/issues/6112) opened by [@snovik75](https://github.com/snovik75)*
+- [`06f40f9`](https://github.com/tobymao/sqlglot/commit/06f40f900ce693ba4203514e422cba8cda0dbb07) - **optimizer**: don't simplify x XOR x due to NULL semantics *(PR [#6115](https://github.com/tobymao/sqlglot/pull/6115) by [@geooo109](https://github.com/geooo109))*
+  - :arrow_lower_right: *fixes issue [#6104](https://github.com/tobymao/sqlglot/issues/6104) opened by [@dllggyx](https://github.com/dllggyx)*
+- [`03e2dff`](https://github.com/tobymao/sqlglot/commit/03e2dff9b074dc228cf3854ff1f4357e091aa9b3) - allow parsing `analyze` as an identifier fixes [#6123](https://github.com/tobymao/sqlglot/pull/6123) *(commit by [@georgesittas](https://github.com/georgesittas))*
+- [`8744431`](https://github.com/tobymao/sqlglot/commit/874443148c8ec2a773dfaca5da10d3587a49de3e) - transpile bigquery DATETIME_DIFF to duckdb *(PR [#6126](https://github.com/tobymao/sqlglot/pull/6126) by [@toriwei](https://github.com/toriwei))*
+  - :arrow_lower_right: *fixes issue [#6107](https://github.com/tobymao/sqlglot/issues/6107) opened by [@izeigerman](https://github.com/izeigerman)*
+- [`b94e81b`](https://github.com/tobymao/sqlglot/commit/b94e81b42b89c75625b2da779c0f53777d9b6b48) - **optimizer**: avoid removing string literals from WHERE clause *(PR [#6131](https://github.com/tobymao/sqlglot/pull/6131) by [@geooo109](https://github.com/geooo109))*
+  - :arrow_lower_right: *fixes issue [#6128](https://github.com/tobymao/sqlglot/issues/6128) opened by [@dllggyx](https://github.com/dllggyx)*
+- [`e2129c6`](https://github.com/tobymao/sqlglot/commit/e2129c6766ca1f10ff6663bec98be984abb33c91) - **optimizer**: Do not consider BIT_COUNT an aggregate function *(PR [#6135](https://github.com/tobymao/sqlglot/pull/6135) by [@VaggelisD](https://github.com/VaggelisD))*
+  - :arrow_lower_right: *fixes issue [#6130](https://github.com/tobymao/sqlglot/issues/6130) opened by [@dllggyx](https://github.com/dllggyx)*
+- [`03bfeed`](https://github.com/tobymao/sqlglot/commit/03bfeed56c5c2f143ce2e1be38d519f902d19961) - **starrocks**: disable IS TRUE/FALSE syntax support *(PR [#6145](https://github.com/tobymao/sqlglot/pull/6145) by [@petrikoro](https://github.com/petrikoro))*
+  - :arrow_lower_right: *fixes issue [#6144](https://github.com/tobymao/sqlglot/issues/6144) opened by [@petrikoro](https://github.com/petrikoro)*
+- [`d136414`](https://github.com/tobymao/sqlglot/commit/d136414e520270ac9ab2fd8e9df4691d269b3af0) - **optimizer**: avoid simplifying AND with NULL *(PR [#6148](https://github.com/tobymao/sqlglot/pull/6148) by [@geooo109](https://github.com/geooo109))*
+  - :arrow_lower_right: *fixes issue [#6136](https://github.com/tobymao/sqlglot/issues/6136) opened by [@dllggyx](https://github.com/dllggyx)*
+- [`1fd9991`](https://github.com/tobymao/sqlglot/commit/1fd99911a60f0543fbc79221a8c6a6f232ed0a2a) - **clickhouse**: NOT + IN precedence *(PR [#6149](https://github.com/tobymao/sqlglot/pull/6149) by [@georgesittas](https://github.com/georgesittas))*
+  - :arrow_lower_right: *fixes issue [#6143](https://github.com/tobymao/sqlglot/issues/6143) opened by [@mlipiev](https://github.com/mlipiev)*
+
+### :recycle: Refactors
+- [`58dbce3`](https://github.com/tobymao/sqlglot/commit/58dbce30da5ab94af82247ab8a7eb85200d9b8af) - bq static type annotators *(PR [#6103](https://github.com/tobymao/sqlglot/pull/6103) by [@geooo109](https://github.com/geooo109))*
+- [`c970235`](https://github.com/tobymao/sqlglot/commit/c97023549623fe5974d6bff57e64339eff74187e) - clean up MONTHNAME test *(commit by [@geooo109](https://github.com/geooo109))*
+
+### :wrench: Chores
+- [`d36ba87`](https://github.com/tobymao/sqlglot/commit/d36ba8774a2a4b53c122e3b78086ce0f09e77244) - **optimizer**: add tests for Snowflake DATE_FROM_PARTS function *(PR [#6077](https://github.com/tobymao/sqlglot/pull/6077) by [@fivetran-BradfordPaskewitz](https://github.com/fivetran-BradfordPaskewitz))*
+- [`2bc05cf`](https://github.com/tobymao/sqlglot/commit/2bc05cf3bd53b874a1505c747e38f8a6a1dbf8c7) - **optimizer**: add tests for Snowflake DATEDIFF function *(PR [#6090](https://github.com/tobymao/sqlglot/pull/6090) by [@fivetran-BradfordPaskewitz](https://github.com/fivetran-BradfordPaskewitz))*
+- [`a4d07a0`](https://github.com/tobymao/sqlglot/commit/a4d07a07eefbdaf88d30df2310a9533afdc75a82) - **optimizer**: Annotate type for snowflake EXTRACT function *(PR [#6099](https://github.com/tobymao/sqlglot/pull/6099) by [@fivetran-amrutabhimsenayachit](https://github.com/fivetran-amrutabhimsenayachit))*
+- [`ab1da2e`](https://github.com/tobymao/sqlglot/commit/ab1da2e54a83e29d708047d4b3f8abcc1094229d) - **optimizer**: add type annotation tests for snowflake LAST_DAY function *(PR [#6105](https://github.com/tobymao/sqlglot/pull/6105) by [@fivetran-amrutabhimsenayachit](https://github.com/fivetran-amrutabhimsenayachit))*
+- [`4e24c0a`](https://github.com/tobymao/sqlglot/commit/4e24c0ad92e7071a1f1537886173e29999b46f72) - **optimizer**: add type annotation tests for snowflake TIMESTAMPDIFF function *(PR [#6138](https://github.com/tobymao/sqlglot/pull/6138) by [@fivetran-MichaelLee](https://github.com/fivetran-MichaelLee))*
+- [`ae8571f`](https://github.com/tobymao/sqlglot/commit/ae8571fdec71587188e45fe087e1967f5ba641bc) - **optimizer**: add type annotation tests for snowflake TIMEDIFF *(PR [#6140](https://github.com/tobymao/sqlglot/pull/6140) by [@fivetran-felixhuang](https://github.com/fivetran-felixhuang))*
+- [`3059320`](https://github.com/tobymao/sqlglot/commit/30593202b30001933f05747937975013754b75fa) - copy by default in `lineage` *(commit by [@georgesittas](https://github.com/georgesittas))*
+- [`99949cc`](https://github.com/tobymao/sqlglot/commit/99949ccd3ff81b524edeae437d874b86250dbb5b) - avoid needlessly copying in lineage *(PR [#6150](https://github.com/tobymao/sqlglot/pull/6150) by [@georgesittas](https://github.com/georgesittas))*
+- [`e7756d8`](https://github.com/tobymao/sqlglot/commit/e7756d8e9f347bfba3f861463890bf57e532cc54) - **optimizer**: add annotation tests for snowflake's BOOLXOR *(PR [#6154](https://github.com/tobymao/sqlglot/pull/6154) by [@fivetran-felixhuang](https://github.com/fivetran-felixhuang))*
+- [`72e43e3`](https://github.com/tobymao/sqlglot/commit/72e43e3ea08f9dce5a32654060a56f2ee31bea8f) - **optimizer**: add type annotation tests for snowflake's TIMESTAMPADD function *(PR [#6146](https://github.com/tobymao/sqlglot/pull/6146) by [@fivetran-ashashankar](https://github.com/fivetran-ashashankar))*
+
+
+## [v27.27.0] - 2025-10-13
+### :boom: BREAKING CHANGES
+- due to [`c67276d`](https://github.com/tobymao/sqlglot/commit/c67276d5be970252e14d1817d8498fc9985222d9) - Annotate type for snowflake RADIANS function. *(PR [#6064](https://github.com/tobymao/sqlglot/pull/6064) by [@fivetran-amrutabhimsenayachit](https://github.com/fivetran-amrutabhimsenayachit))*:
+
+  Annotate type for snowflake RADIANS function. (#6064)
+
+
+### :sparkles: New Features
+- [`c67276d`](https://github.com/tobymao/sqlglot/commit/c67276d5be970252e14d1817d8498fc9985222d9) - **optimizer**: Annotate type for snowflake RADIANS function. *(PR [#6064](https://github.com/tobymao/sqlglot/pull/6064) by [@fivetran-amrutabhimsenayachit](https://github.com/fivetran-amrutabhimsenayachit))*
+
+### :wrench: Chores
+- [`dab2a3f`](https://github.com/tobymao/sqlglot/commit/dab2a3fbdb8a523f05319eb34a1fd34534272206) - bump sqlglotrs version to 0.7.3 *(commit by [@georgesittas](https://github.com/georgesittas))*
+
+
+## [v27.26.0] - 2025-10-10
+### :boom: BREAKING CHANGES
+- due to [`9060f60`](https://github.com/tobymao/sqlglot/commit/9060f603818db863b7570a2c3c50c3eb88155e76) - Annotate type for snowflake ATAN2 function. *(PR [#6060](https://github.com/tobymao/sqlglot/pull/6060) by [@fivetran-amrutabhimsenayachit](https://github.com/fivetran-amrutabhimsenayachit))*:
+
+  Annotate type for snowflake ATAN2 function. (#6060)
+
+- due to [`b3eb2e4`](https://github.com/tobymao/sqlglot/commit/b3eb2e4ca6177ee61b27675e8ec8b4815587df31) - annotate type for Snowflake SINH function *(PR [#6052](https://github.com/tobymao/sqlglot/pull/6052) by [@fivetran-BradfordPaskewitz](https://github.com/fivetran-BradfordPaskewitz))*:
+
+  annotate type for Snowflake SINH function (#6052)
+
+- due to [`157d2fa`](https://github.com/tobymao/sqlglot/commit/157d2fa06ab110ebc760aa7567d7fda801a5ced9) - annotate type for Snowflake CEIL function *(PR [#6051](https://github.com/tobymao/sqlglot/pull/6051) by [@fivetran-BradfordPaskewitz](https://github.com/fivetran-BradfordPaskewitz))*:
+
+  annotate type for Snowflake CEIL function (#6051)
+
+- due to [`e7833de`](https://github.com/tobymao/sqlglot/commit/e7833de9744a4aa69d244285e7f6f7281af178ba) - support DELETE with USING and multiple VALUES *(PR [#6072](https://github.com/tobymao/sqlglot/pull/6072) by [@geooo109](https://github.com/geooo109))*:
+
+  support DELETE with USING and multiple VALUES (#6072)
+
+- due to [`354140d`](https://github.com/tobymao/sqlglot/commit/354140d0a279f317439bdb247e1ab9578f9a035d) - Annotate type for snowflake TANH and ATAN functions *(PR [#6069](https://github.com/tobymao/sqlglot/pull/6069) by [@fivetran-amrutabhimsenayachit](https://github.com/fivetran-amrutabhimsenayachit))*:
+
+  Annotate type for snowflake TANH and ATAN functions (#6069)
+
+
+### :sparkles: New Features
+- [`9060f60`](https://github.com/tobymao/sqlglot/commit/9060f603818db863b7570a2c3c50c3eb88155e76) - **optimizer**: Annotate type for snowflake ATAN2 function. *(PR [#6060](https://github.com/tobymao/sqlglot/pull/6060) by [@fivetran-amrutabhimsenayachit](https://github.com/fivetran-amrutabhimsenayachit))*
+- [`b3eb2e4`](https://github.com/tobymao/sqlglot/commit/b3eb2e4ca6177ee61b27675e8ec8b4815587df31) - **optimizer**: annotate type for Snowflake SINH function *(PR [#6052](https://github.com/tobymao/sqlglot/pull/6052) by [@fivetran-BradfordPaskewitz](https://github.com/fivetran-BradfordPaskewitz))*
+- [`440b960`](https://github.com/tobymao/sqlglot/commit/440b960529801674fa23708212485fda95749699) - **duckdb**: support `USING KEY (...)` in recursive DuckDB CTEs *(PR [#6068](https://github.com/tobymao/sqlglot/pull/6068) by [@georgesittas](https://github.com/georgesittas))*
+  - :arrow_lower_right: *addresses issue [#6066](https://github.com/tobymao/sqlglot/issues/6066) opened by [@denis-komarov](https://github.com/denis-komarov)*
+- [`157d2fa`](https://github.com/tobymao/sqlglot/commit/157d2fa06ab110ebc760aa7567d7fda801a5ced9) - **optimizer**: annotate type for Snowflake CEIL function *(PR [#6051](https://github.com/tobymao/sqlglot/pull/6051) by [@fivetran-BradfordPaskewitz](https://github.com/fivetran-BradfordPaskewitz))*
+- [`eb6d6e7`](https://github.com/tobymao/sqlglot/commit/eb6d6e7ccde37456ab56ad976e7d95cea23c14e3) - **duckdb**: support `DEFAULT VALUES` clause in `INSERT` DML *(PR [#6067](https://github.com/tobymao/sqlglot/pull/6067) by [@georgesittas](https://github.com/georgesittas))*
+  - :arrow_lower_right: *addresses issue [#6065](https://github.com/tobymao/sqlglot/issues/6065) opened by [@denis-komarov](https://github.com/denis-komarov)*
+- [`354140d`](https://github.com/tobymao/sqlglot/commit/354140d0a279f317439bdb247e1ab9578f9a035d) - **optimizer**: Annotate type for snowflake TANH and ATAN functions *(PR [#6069](https://github.com/tobymao/sqlglot/pull/6069) by [@fivetran-amrutabhimsenayachit](https://github.com/fivetran-amrutabhimsenayachit))*
+- [`c94e3e0`](https://github.com/tobymao/sqlglot/commit/c94e3e0e4e20bd76d4cf630123d2c05a0e3044c3) - add ColumnDef expression parser *(PR [#6075](https://github.com/tobymao/sqlglot/pull/6075) by [@geooo109](https://github.com/geooo109))*
+
+### :bug: Bug Fixes
+- [`2c7cc29`](https://github.com/tobymao/sqlglot/commit/2c7cc29a329dcbaaa90a6f857d2383d2967ea6cc) - **duckdb**: Transform exp.HexString to BLOB in hex notation *(PR [#6045](https://github.com/tobymao/sqlglot/pull/6045) by [@VaggelisD](https://github.com/VaggelisD))*
+  - :arrow_lower_right: *fixes issue [#6035](https://github.com/tobymao/sqlglot/issues/6035) opened by [@kyle-cheung](https://github.com/kyle-cheung)*
+- [`e7833de`](https://github.com/tobymao/sqlglot/commit/e7833de9744a4aa69d244285e7f6f7281af178ba) - **parser**: support DELETE with USING and multiple VALUES *(PR [#6072](https://github.com/tobymao/sqlglot/pull/6072) by [@geooo109](https://github.com/geooo109))*
+  - :arrow_lower_right: *fixes issue [#6070](https://github.com/tobymao/sqlglot/issues/6070) opened by [@denis-komarov](https://github.com/denis-komarov)*
+
+### :recycle: Refactors
+- [`2c9d15c`](https://github.com/tobymao/sqlglot/commit/2c9d15c92da25c8456b2463c69aa56c8ec47c453) - replace direct arg manipulation *(PR [#6073](https://github.com/tobymao/sqlglot/pull/6073) by [@geooo109](https://github.com/geooo109))*
+
+### :wrench: Chores
+- [`75b8d16`](https://github.com/tobymao/sqlglot/commit/75b8d16e41b677ea7e150c89d713795073aae6e3) - remove docs from main branch *(PR [#6057](https://github.com/tobymao/sqlglot/pull/6057) by [@georgesittas](https://github.com/georgesittas))*
+- [`cfa2493`](https://github.com/tobymao/sqlglot/commit/cfa249328eef31ab0e0688dcc03521da3343ce47) - **optimizer**: Annotate type for snowflake SQUARE function *(PR [#6059](https://github.com/tobymao/sqlglot/pull/6059) by [@fivetran-amrutabhimsenayachit](https://github.com/fivetran-amrutabhimsenayachit))*
+- [`e26c394`](https://github.com/tobymao/sqlglot/commit/e26c3949beb7f73020fcd099237dbe31a4db8d84) - **optimizer**: Annotate type for snowflake POW function *(PR [#6058](https://github.com/tobymao/sqlglot/pull/6058) by [@fivetran-amrutabhimsenayachit](https://github.com/fivetran-amrutabhimsenayachit))*
+- [`7d303ad`](https://github.com/tobymao/sqlglot/commit/7d303adc5efe9d51eb62aeab80bfa4f844e1911d) - include Python 3.14 in the testing matrix *(PR [#6074](https://github.com/tobymao/sqlglot/pull/6074) by [@georgesittas](https://github.com/georgesittas))*
+
+
 ## [v27.25.0] - 2025-10-09
 ### :boom: BREAKING CHANGES
 - due to [`6f31b86`](https://github.com/tobymao/sqlglot/commit/6f31b86599258afe156aa3d9ccc42389cac37021) - Annotate type for snowflake FLOOR function *(PR [#6030](https://github.com/tobymao/sqlglot/pull/6030) by [@fivetran-amrutabhimsenayachit](https://github.com/fivetran-amrutabhimsenayachit))*:
@@ -7819,3 +8166,7 @@ Changelog
 [v27.22.1]: https://github.com/tobymao/sqlglot/compare/v27.22.0...v27.22.1
 [v27.22.2]: https://github.com/tobymao/sqlglot/compare/v27.22.1...v27.22.2
 [v27.25.0]: https://github.com/tobymao/sqlglot/compare/v27.24.2...v27.25.0
+[v27.26.0]: https://github.com/tobymao/sqlglot/compare/v27.25.2...v27.26.0
+[v27.27.0]: https://github.com/tobymao/sqlglot/compare/v27.26.0...v27.27.0
+[v27.28.0]: https://github.com/tobymao/sqlglot/compare/v27.27.0...v27.28.0
+[v27.29.0]: https://github.com/tobymao/sqlglot/compare/v27.28.1...v27.29.0

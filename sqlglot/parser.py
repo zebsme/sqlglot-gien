@@ -637,7 +637,7 @@ class Parser(metaclass=_Parser):
         TokenType.LONG_VARCHAR,
         TokenType.DECFLOAT,
         TokenType.LONG_VARGRAPHIC,
-        # TokenType.BYTEINT,
+        TokenType.BYTEINT,
         # TokenType.INTEGER,
         *ENUM_TYPE_TOKENS,
         *NESTED_TYPE_TOKENS,
@@ -706,6 +706,7 @@ class Parser(metaclass=_Parser):
     # Tokens that can represent identifiers
     ID_VAR_TOKENS = {
         TokenType.ALL,
+        TokenType.ANALYZE,
         TokenType.ATTACH,
         TokenType.VAR,
         TokenType.ANTI,
@@ -1026,6 +1027,7 @@ class Parser(metaclass=_Parser):
     EXPRESSION_PARSERS = {
         exp.Cluster: lambda self: self._parse_sort(exp.Cluster, TokenType.CLUSTER_BY),
         exp.Column: lambda self: self._parse_column(),
+        exp.ColumnDef: lambda self: self._parse_column_def(self._parse_column()),
         exp.Condition: lambda self: self._parse_assignment(),
         exp.DataType: lambda self: self._parse_types(allow_identifiers=False, schema=True),
         exp.Expression: lambda self: self._parse_expression(),
@@ -1377,6 +1379,9 @@ class Parser(metaclass=_Parser):
         # - 如果没有括号，则解析为标识符
         # - 如果有括号，则解析为 PartitionedByBucket 或 PartitionByTruncate
         if not self._match(TokenType.L_PAREN, advance=False):
+            # Partitioning by bucket or truncate follows the syntax:
+            # PARTITION BY (BUCKET(..) | TRUNCATE(..))
+            # If we don't have parenthesis after each keyword, we should instead parse this as an identifier
             self._retreat(self._index - 1)
             return None
 
@@ -1696,7 +1701,7 @@ class Parser(metaclass=_Parser):
 
     RECURSIVE_CTE_SEARCH_KIND = {"BREADTH", "DEPTH", "CYCLE"}
 
-    MODIFIABLES = (exp.Query, exp.Table, exp.TableFromRows)
+    MODIFIABLES = (exp.Query, exp.Table, exp.TableFromRows, exp.Values)
 
     STRICT_CAST = True
 
@@ -1704,9 +1709,6 @@ class Parser(metaclass=_Parser):
     IDENTIFY_PIVOT_STRINGS = False
 
     LOG_DEFAULTS_TO_LN = False
-
-    # Whether ADD is present for each column added by ALTER TABLE
-    ALTER_TABLE_ADD_REQUIRED_FOR_EACH_COLUMN = True
 
     # Whether the table sample clause expects CSV syntax
     TABLESAMPLE_CSV = False
@@ -3873,6 +3875,7 @@ class Parser(metaclass=_Parser):
             where=self._match_pair(TokenType.REPLACE, TokenType.WHERE) and self._parse_assignment(),  # ClickHouse：REPLACE WHERE
             partition=self._match(TokenType.PARTITION_BY) and self._parse_partitioned_by(),  # 方言：PARTITION BY
             settings=self._match_text_seq("SETTINGS") and self._parse_settings_property(),  # ClickHouse：SETTINGS
+            default=self._match_text_seq("DEFAULT", "VALUES"),
             expression=self._parse_derived_table_values() or self._parse_ddl_select(),  # 数据来源：VALUES/SELECT 或 DDL SELECT
             conflict=self._parse_on_conflict(),  # 冲突处理：ON CONFLICT
             returning=returning or self._parse_returning(),  # RETURNING 可能在后面再次出现
@@ -4048,7 +4051,8 @@ class Parser(metaclass=_Parser):
             exp.Delete,
             tables=tables,
             this=self._match(TokenType.FROM) and self._parse_table(joins=True),  # FROM 后的主表及联接
-            using=self._match(TokenType.USING) and self._parse_table(joins=True),  # MySQL：USING 子句
+            using=self._match(TokenType.USING)
+            and self._parse_csv(lambda: self._parse_table(joins=True)),  # MySQL：USING 子句
             cluster=self._match(TokenType.ON) and self._parse_on_property(),  # 方言扩展：ON CLUSTER/ON COMMIT 等
             where=self._parse_where(),
             returning=returning or self._parse_returning(),
@@ -4177,6 +4181,7 @@ class Parser(metaclass=_Parser):
             else:
                 # 否则退化为 SELECT * FROM <from_>
                 this = exp.select("*").from_(t.cast(exp.From, from_))
+                this = self._parse_query_modifiers(self._parse_set_operations(this))
         else:
             # 不是 FROM-first：根据是否处于 table 上下文，选择解析表或嵌套 SELECT
             this = (
@@ -4563,7 +4568,8 @@ class Parser(metaclass=_Parser):
                         this.set(key, expression)
                         # 特殊处理 LIMIT：统一 AST 表达，抽出其中的 offset 以及 "BY" 等扩展字段
                         if key == "limit":
-                            offset = expression.args.pop("offset", None)
+                            offset = expression.args.get("offset")
+                            expression.set("offset", None)
 
                             if offset:
                                 # 将 offset 从 limit 表达式中提取为独立 Offset 节点
@@ -5819,7 +5825,7 @@ class Parser(metaclass=_Parser):
             return None
 
         return self.expression(
-            kind, expressions=[] if with_prefix else self._parse_wrapped_csv(self._parse_column)
+            kind, expressions=[] if with_prefix else self._parse_wrapped_csv(self._parse_bitwise)
         )
 
     def _parse_grouping_sets(self) -> t.Optional[exp.GroupingSets]:
@@ -6000,8 +6006,13 @@ class Parser(metaclass=_Parser):
                 # Parsing LIMIT x% (i.e x PERCENT) as a term leads to an error, since
                 # we try to build an exp.Mod expr. For that matter, we backtrack and instead
                 # consume the factor plus parse the percentage separately
-                expression = self._try_parse(self._parse_term) or self._parse_factor()
-
+                index = self._index
+                expression = self._try_parse(self._parse_term)
+                if isinstance(expression, exp.Mod):
+                    self._retreat(index)
+                    expression = self._parse_factor()
+                elif not expression:
+                    expression = self._parse_factor()
             limit_options = self._parse_limit_options()
 
             # LIMIT offset, count 的逗号语法（MySQL 等）
@@ -6372,7 +6383,9 @@ class Parser(metaclass=_Parser):
         # 解析 LIKE ... ESCAPE 'x'：自定义转义字符
         if not self._match(TokenType.ESCAPE):
             return this
-        return self.expression(exp.Escape, this=this, expression=self._parse_string())
+        return self.expression(
+            exp.Escape, this=this, expression=self._parse_string() or self._parse_null()
+        )
 
     def _parse_interval(self, match_interval: bool = True) -> t.Optional[exp.Add | exp.Interval]:
         # 解析 INTERVAL：将多方言写法归一为 INTERVAL 'value' unit 的规范形态，便于转译
@@ -6555,8 +6568,8 @@ class Parser(metaclass=_Parser):
 
             # 对除法附加方言策略：typed（类型化除法）/safe（空值安全）
             if isinstance(this, exp.Div):
-                this.args["typed"] = self.dialect.TYPED_DIVISION
-                this.args["safe"] = self.dialect.SAFE_DIVISION
+                this.set("typed", self.dialect.TYPED_DIVISION)
+                this.set("safe", self.dialect.SAFE_DIVISION)
 
         return this
 
@@ -7254,16 +7267,9 @@ class Parser(metaclass=_Parser):
                 or self._parse_primary()
             )
         else:
-            # 常规优先 primary：避免将普通 ID/常量误识别为函数
-            tmp = self._parse_primary()
-            if not tmp:
-                tmp = self._parse_function(
+            field = self._parse_primary() or self._parse_function(
                 anonymous=anonymous_func, any_token=any_token
             )
-            field = tmp
-            # field = self._parse_primary() or self._parse_function(
-            #     anonymous=anonymous_func, any_token=any_token
-            # )
         return field or self._parse_id_var(any_token=any_token, tokens=tokens)
 
     def _parse_function(
@@ -9933,15 +9939,13 @@ class Parser(metaclass=_Parser):
         using = self._parse_table()
 
         # ON <condition>：连接条件；此处用通用 assignment 解析，兼容复杂表达式
-        self._match(TokenType.ON)
-        on = self._parse_assignment()
-
         # 收集 WHEN 分支与可选 RETURNING 子句，构造 Merge AST
         return self.expression(
             exp.Merge,
             this=target,
             using=using,
-            on=on,
+            on=self._match(TokenType.ON) and self._parse_assignment(),
+            using_cond=self._match(TokenType.USING) and self._parse_using_identifiers(),
             whens=self._parse_when_matched(),
             returning=self._parse_returning(),
         )
@@ -10182,6 +10186,7 @@ class Parser(metaclass=_Parser):
         index = self._index
         # 先解析被映射的表达式部分（如 Python 风格推导式中的前项）
         expression = self._parse_column()
+        position = self._match(TokenType.COMMA) and self._parse_column()
         # 必须匹配 IN，否则不是推导式；回退到 index-1（把多 advance 的一步撤回）
         if not self._match(TokenType.IN):
             self._retreat(index - 1)
@@ -10194,6 +10199,7 @@ class Parser(metaclass=_Parser):
             exp.Comprehension,
             this=this,
             expression=expression,
+            position=position,
             iterator=iterator,
             condition=condition,
         )

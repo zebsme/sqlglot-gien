@@ -200,7 +200,7 @@ def _build_hashbytes(args: t.List) -> exp.Expression:
     return exp.func("HASHBYTES", *args)
 
 
-DATEPART_ONLY_FORMATS = {"DW", "WK", "HOUR", "QUARTER"}
+DATEPART_ONLY_FORMATS = {"DW", "WK", "HOUR", "QUARTER", "ISO_WEEK"}
 
 
 def _format_sql(self: TSQL.Generator, expression: exp.NumberToStr | exp.TimeToStr) -> str:
@@ -412,6 +412,11 @@ class TSQL(Dialect):
 
     TIME_FORMAT = "'yyyy-mm-dd hh:mm:ss'"
 
+    ANNOTATORS = {
+        **Dialect.ANNOTATORS,
+        exp.Radians: lambda self, e: self._annotate_by_args(e, "this"),
+    }
+
     TIME_MAPPING = {
         "year": "%Y",
         "dayofyear": "%j",
@@ -421,6 +426,9 @@ class TSQL(Dialect):
         "week": "%W",
         "ww": "%W",
         "wk": "%W",
+        "isowk": "%IW",
+        "isoww": "%IW",
+        "iso_week": "%IW",
         "hour": "%h",
         "hh": "%I",
         "minute": "%M",
@@ -1219,7 +1227,8 @@ class TSQL(Dialect):
 
         def create_sql(self, expression: exp.Create) -> str:
             kind = expression.kind
-            exists = expression.args.pop("exists", None)
+            exists = expression.args.get("exists")
+            expression.set("exists", None)
 
             like_property = expression.find(exp.LikeProperty)
             if like_property:

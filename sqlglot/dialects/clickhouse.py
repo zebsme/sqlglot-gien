@@ -769,7 +769,9 @@ class ClickHouse(Dialect):
         ) -> t.Optional[exp.Join]:
             join = super()._parse_join(skip_join_token=skip_join_token, parse_bracket=True)
             if join:
-                join.set("global", join.args.pop("method", None))
+                method = join.args.get("method")
+                join.set("method", None)
+                join.set("global", method)
 
                 # tbl ARRAY JOIN arr <-- this should be a `Column` reference, not a `Table`
                 # https://clickhouse.com/docs/en/sql-reference/statements/select/array-join
@@ -1416,9 +1418,12 @@ class ClickHouse(Dialect):
             return in_sql
 
         def not_sql(self, expression: exp.Not) -> str:
-            if isinstance(expression.this, exp.In) and expression.this.args.get("is_global"):
-                # let `GLOBAL IN` child interpose `NOT`
-                return self.sql(expression, "this")
+            if isinstance(expression.this, exp.In):
+                if expression.this.args.get("is_global"):
+                    # let `GLOBAL IN` child interpose `NOT`
+                    return self.sql(expression, "this")
+
+                expression.set("this", exp.paren(expression.this, copy=False))
 
             return super().not_sql(expression)
 

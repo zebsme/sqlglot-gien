@@ -126,7 +126,7 @@ class Teradata(Dialect):
             "^=": TokenType.NEQ,             # 不等于操作符
             "BYTEINT": TokenType.BYTEINT,   # BYTEINT 数据类型映射为 BYTEINT
             "COLLECT": TokenType.COMMAND,    # COLLECT 统计命令
-            "CONTENT": TokenType.CONTENT,    # RETURNING CONTENT 关键字
+            # "CONTENT": TokenType.CONTENT,    # RETURNING CONTENT 关键字
             "DEL": TokenType.DELETE,         # DELETE 的缩写形式
             "EQ": TokenType.EQ,              # 等于操作符
             "GE": TokenType.GTE,             # 大于等于操作符
@@ -137,6 +137,7 @@ class Teradata(Dialect):
             "LOCKING": TokenType.LOCK,       # 锁定语句关键字
             "LT": TokenType.LT,              # 小于操作符
             "MINUS": TokenType.EXCEPT,       # MINUS 操作符（等同于 EXCEPT）
+            "MOD": TokenType.MOD,            # MOD 操作符
             "NE": TokenType.NEQ,             # 不等于操作符
             "NOT=": TokenType.NEQ,           # 不等于操作符的另一种形式
             "SAMPLE": TokenType.TABLE_SAMPLE, # 表采样关键字
@@ -145,7 +146,7 @@ class Teradata(Dialect):
             "TOP": TokenType.TOP,            # TOP 限制关键字
             "UPD": TokenType.UPDATE,         # UPDATE 的缩写形式
             "XMLAGG": TokenType.XMLAGG,      # XMLAGG 函数关键字
-            "MOD": TokenType.MOD,            # MOD 操作符
+
         }
         # 移除 Oracle 风格的提示注释支持
         KEYWORDS.pop("/*+")
@@ -247,12 +248,6 @@ class Teradata(Dialect):
             # LOCKING 语句的专门解析器
             TokenType.LOCK: lambda self: self._parse_locking_statement(),
         }
-        
-        TYPE_TOKENS = {
-            *parser.Parser.TYPE_TOKENS,
-            TokenType.BYTEINT,
-            # TokenType.INTEGER,
-        }
 
         def _parse_locking_statement(self) -> exp.LockingStatement:
             """
@@ -339,6 +334,8 @@ class Teradata(Dialect):
                 with_error=self._match_text_seq("WITH", "ERROR"),  # 错误处理选项
             )
 
+        # FROM before SET in Teradata UPDATE syntax
+        # https://docs.teradata.com/r/Enterprise_IntelliFlex_VMware/Teradata-VantageTM-SQL-Data-Manipulation-Language-17.20/Statement-Syntax/UPDATE/UPDATE-Syntax-Basic-Form-FROM-Clause
         def _parse_update(self) -> exp.Update:
             """
             解析 Teradata UPDATE 语句

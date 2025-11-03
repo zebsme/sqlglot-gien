@@ -345,6 +345,13 @@ TBLPROPERTIES (
         )
 
         self.validate_all(
+            "SELECT * FROM parquet.`name.parquet`",
+            read={
+                "duckdb": "SELECT * FROM READ_PARQUET('name.parquet')",
+                "spark": "SELECT * FROM parquet.`name.parquet`",
+            },
+        )
+        self.validate_all(
             "SELECT TO_JSON(STRUCT('blah' AS x)) AS y",
             write={
                 "presto": "SELECT JSON_FORMAT(CAST(CAST(ROW('blah') AS ROW(x VARCHAR)) AS JSON)) AS y",
@@ -883,6 +890,34 @@ TBLPROPERTIES (
                 "spark, version=3.0.0": "ARRAY_JOIN(COLLECT_LIST(x), ', ')",
                 "spark, version=4.0.0": "LISTAGG(x, ', ')",
                 "spark": "LISTAGG(x, ', ')",
+            },
+        )
+        self.validate_all(
+            "LIKE(foo, 'pattern')",
+            write={
+                "spark": "foo LIKE 'pattern'",
+                "databricks": "foo LIKE 'pattern'",
+            },
+        )
+        self.validate_all(
+            "LIKE(foo, 'pattern', '!')",
+            write={
+                "spark": "foo LIKE 'pattern' ESCAPE '!'",
+                "databricks": "foo LIKE 'pattern' ESCAPE '!'",
+            },
+        )
+        self.validate_all(
+            "ILIKE(foo, 'pattern')",
+            write={
+                "spark": "foo ILIKE 'pattern'",
+                "databricks": "foo ILIKE 'pattern'",
+            },
+        )
+        self.validate_all(
+            "ILIKE(foo, 'pattern', '!')",
+            write={
+                "spark": "foo ILIKE 'pattern' ESCAPE '!'",
+                "databricks": "foo ILIKE 'pattern' ESCAPE '!'",
             },
         )
 

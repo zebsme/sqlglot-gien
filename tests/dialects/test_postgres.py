@@ -22,6 +22,7 @@ class TestPostgres(Validator):
         expected_sql = "ARRAY[\n  x" + (",\n  x" * 27) + "\n]"
         self.validate_identity(sql, expected_sql, pretty=True)
 
+        self.validate_identity("SELECT * FROM t GROUP BY ROLLUP (a || '^' || b)")
         self.validate_identity("SELECT COSH(1.5)")
         self.validate_identity("SELECT EXP(1)")
         self.validate_identity("SELECT ST_DISTANCE(gg1, gg2, FALSE) AS sphere_dist")
@@ -976,6 +977,16 @@ FROM json_data, field_ids""",
         )
         self.validate_identity(
             "SELECT JSON_AGG(DISTINCT c1 ORDER BY c1) FROM (VALUES ('c'), ('b'), ('a')) AS t(c1)"
+        )
+        self.validate_all(
+            "SELECT REGEXP_REPLACE('aaa', 'a', 'b')",
+            read={
+                "postgres": "SELECT REGEXP_REPLACE('aaa', 'a', 'b')",
+                "duckdb": "SELECT REGEXP_REPLACE('aaa', 'a', 'b')",
+            },
+            write={
+                "duckdb": "SELECT REGEXP_REPLACE('aaa', 'a', 'b')",
+            },
         )
 
     def test_ddl(self):

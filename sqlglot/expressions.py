@@ -1595,10 +1595,10 @@ class Expression(metaclass=_Expression):
         div = self._binop(Div, other)
         # 设置除法类型标志：typed表示整数除法
         # 整数除法会截断小数部分，如 5/2 = 2
-        div.args["typed"] = typed
+        div.set("typed", typed)
         # 设置安全除法标志：safe表示除零时返回NULL
         # 避免除零错误，提高SQL的健壮性
-        div.args["safe"] = safe
+        div.set("safe", safe)
         return div
 
     def asc(self, nulls_first: bool = True) -> Ordered:
@@ -3475,6 +3475,7 @@ class Comprehension(Expression):
     arg_types = {
         "this": True,        # 输出表达式
         "expression": True,  # 源表达式/数组
+        "position": False,
         "iterator": True,    # 迭代变量
         "condition": False,  # 过滤条件（可选）
     }
@@ -7540,6 +7541,9 @@ class Values(UDTF):
     arg_types = {
         "expressions": True,  # 值表达式列表（必需）
         "alias": False,       # 表别名（可选）
+        "order": False,
+        "limit": False,
+        "offset": False,
     }
 
 
@@ -11645,6 +11649,10 @@ class Tan(Func):
     pass
 
 
+class Tanh(Func):
+    pass
+
+
 class Degrees(Func):
     pass
 
@@ -11725,7 +11733,9 @@ class BitwiseXorAgg(AggFunc):
     - 数据加密：用于简单的数据加密
     """
     pass
-
+    
+class BitwiseCount(Func):
+    pass
 
 class BitwiseCountAgg(AggFunc):
     """
@@ -11744,6 +11754,18 @@ class BitwiseCountAgg(AggFunc):
 
 class ByteLength(Func):
     pass
+
+
+class Boolnot(Func):
+    pass
+
+
+class Booland(Func):
+    arg_types = {"this": True, "expression": True}
+
+
+class Boolor(Func):
+    arg_types = {"this": True, "expression": True}
 
 
 # https://cloud.google.com/bigquery/docs/reference/standard-sql/json_functions#bool_for_json
@@ -12240,266 +12262,7 @@ class ToNumber(Func):
     }
 
 
-# 参考：https://clickhouse.com/docs/en/sql-reference/aggregate-functions/combinators
-class CombinedAggFunc(AnonymousAggFunc):
-    """
-    组合聚合函数类。
-    
-    表示ClickHouse中的组合聚合函数。
-    用于组合多个聚合函数的功能。
-    
-    参考：https://clickhouse.com/docs/en/sql-reference/aggregate-functions/combinators
-    
-    组合聚合函数的特点：
-    - 函数组合：组合多个聚合函数
-    - ClickHouse特有：主要用于ClickHouse
-    - 高级功能：提供高级聚合功能
-    - 性能优化：优化聚合计算性能
-    """
-    arg_types = {
-        "this": True,        # 函数名称（必需）
-        "expressions": False, # 参数表达式列表（可选）
-    }
 
-
-class CombinedParameterizedAgg(ParameterizedAgg):
-    """
-    组合参数化聚合函数类。
-    
-    表示组合的参数化聚合函数。
-    结合了组合聚合函数和参数化聚合函数的功能。
-    
-    组合参数化聚合的特点：
-    - 函数组合：组合多个聚合函数
-    - 参数支持：支持额外的参数
-    - 高级功能：提供高级聚合功能
-    - 灵活配置：可以根据参数调整行为
-    """
-    arg_types = {
-        "this": True,        # 函数名称（必需）
-        "expressions": True, # 参数表达式列表（必需）
-        "params": True,      # 参数列表（必需）
-    }
-
-
-# 参考：
-# https://docs.snowflake.com/en/sql-reference/functions/hll
-# https://docs.aws.amazon.com/redshift/latest/dg/r_HLL_function.html
-class Hll(AggFunc):
-    """
-    超对数聚合函数类。
-    
-    表示SQL中的HLL（HyperLogLog）函数。
-    用于高效地计算近似唯一值数量。
-    
-    参考：
-    - https://docs.snowflake.com/en/sql-reference/functions/hll
-    - https://docs.aws.amazon.com/redshift/latest/dg/r_HLL_function.html
-    
-    超对数的特点：
-    - 近似计算：使用HyperLogLog算法
-    - 内存效率：使用有限内存处理大数据
-    - 高精度：在低内存下保持高精度
-    - 大数据支持：特别适合大数据场景
-    """
-    arg_types = {
-        "this": True,        # 值表达式（必需）
-        "expressions": False, # 参数表达式列表（可选）
-    }
-    is_var_len_args = True  # 支持可变长度参数
-
-
-class ApproxDistinct(AggFunc):
-    """
-    近似去重聚合函数类。
-    
-    表示SQL中的APPROX_DISTINCT函数。
-    用于高效地计算近似唯一值数量。
-    
-    近似去重的特点：
-    - 近似计算：使用近似算法提高性能
-    - 内存效率：使用有限内存处理大数据
-    - 精度控制：支持精度参数
-    - 大数据支持：特别适合大数据场景
-    """
-    arg_types = {
-        "this": True,      # 值表达式（必需）
-        "accuracy": False, # 精度参数（可选）
-    }
-    _sql_names = ["APPROX_DISTINCT", "APPROX_COUNT_DISTINCT"]  # 支持的SQL名称
-
-
-class Apply(Func):
-    """
-    应用函数类。
-    
-    表示SQL中的APPLY函数。
-    用于将函数应用到表达式上。
-    
-    应用函数的特点：
-    - 函数应用：将函数应用到表达式
-    - 动态调用：支持动态函数调用
-    - 灵活配置：支持各种函数调用方式
-    - 数据库差异：不同数据库的语法可能不同
-    """
-    arg_types = {
-        "this": True,      # 函数表达式（必需）
-        "expression": True, # 应用表达式（必需）
-    }
-
-
-class Array(Func):
-    """
-    数组构造函数类。
-    
-    表示SQL中的数组构造函数。
-    用于创建数组字面量或数组表达式。
-    
-    数组构造的特点：
-    - 字面量创建：创建数组字面量
-    - 表达式数组：从表达式创建数组
-    - 可变参数：支持可变数量的元素
-    - 类型推断：自动推断数组元素类型
-    """
-    arg_types = {
-        "expressions": False,      # 数组元素表达式列表（可选）
-        "bracket_notation": False, # 方括号表示法（可选）
-    }
-    is_var_len_args = True  # 支持可变长度参数
-
-
-class Ascii(Func):
-    """
-    ASCII码函数类。
-    
-    表示SQL中的ASCII函数。
-    用于获取字符的ASCII码值。
-    
-    ASCII函数的特点：
-    - 字符转换：将字符转换为ASCII码
-    - 单字符：通常只处理字符串的第一个字符
-    - 数值返回：返回整数值
-    - 广泛支持：大多数数据库都支持
-    """
-    pass
-
-
-# 参考：https://docs.snowflake.com/en/sql-reference/functions/to_array
-class ToArray(Func):
-    """
-    转换为数组函数类。
-    
-    表示SQL中的TO_ARRAY函数。
-    用于将其他类型转换为数组类型。
-    
-    参考：https://docs.snowflake.com/en/sql-reference/functions/to_array
-    
-    转换为数组的特点：
-    - 类型转换：将其他类型转换为数组
-    - Snowflake支持：主要用于Snowflake数据库
-    - 数据转换：用于数据格式转换
-    - 类型安全：确保转换的类型正确性
-    """
-    pass
-
-
-# 参考：https://materialize.com/docs/sql/types/list/
-class List(Func):
-    """
-    列表构造函数类。
-    
-    表示SQL中的列表构造函数。
-    用于创建列表类型的数据结构。
-    
-    参考：https://materialize.com/docs/sql/types/list/
-    
-    列表构造的特点：
-    - 列表创建：创建列表数据结构
-    - Materialize支持：主要用于Materialize数据库
-    - 可变参数：支持可变数量的元素
-    - 类型推断：自动推断列表元素类型
-    """
-    arg_types = {
-        "expressions": False, # 列表元素表达式列表（可选）
-    }
-    is_var_len_args = True  # 支持可变长度参数
-
-
-# 字符串填充，kind True -> LPAD，False -> RPAD
-class Pad(Func):
-    """
-    字符串填充函数类。
-    
-    表示SQL中的字符串填充函数。
-    用于在字符串的左侧或右侧填充字符。
-    
-    字符串填充的特点：
-    - 左填充：LPAD，在字符串左侧填充
-    - 右填充：RPAD，在字符串右侧填充
-    - 填充字符：可以指定填充字符
-    - 长度控制：控制填充后的字符串长度
-    """
-    arg_types = {
-        "this": True,         # 源字符串（必需）
-        "expression": True,   # 目标长度（必需）
-        "fill_pattern": False, # 填充模式（可选）
-        "is_left": True,      # 是否左填充（必需）
-    }
-
-# 参考：
-# https://docs.snowflake.com/en/sql-reference/functions/to_char
-# https://docs.oracle.com/en/database/oracle/oracle-database/23/sqlrf/TO_CHAR-number.html
-class ToChar(Func):
-    """
-    转换为字符串函数类。
-    
-    表示SQL中的TO_CHAR函数。
-    用于将其他类型转换为字符串类型。
-    
-    参考：
-    - https://docs.snowflake.com/en/sql-reference/functions/to_char
-    - https://docs.oracle.com/en/database/oracle/oracle-database/23/sqlrf/TO_CHAR-number.html
-    
-    转换为字符串的特点：
-    - 类型转换：将数值、日期等转换为字符串
-    - 格式控制：支持格式字符串
-    - 本地化：支持本地化参数
-    - 广泛支持：大多数数据库都支持
-    """
-    arg_types = {
-        "this": True,     # 要转换的表达式（必需）
-        "format": False,  # 格式字符串（可选）
-        "nlsparam": False, # 本地化参数（可选）
-    }
-
-
-# 参考：
-# https://docs.snowflake.com/en/sql-reference/functions/to_decimal
-# https://docs.oracle.com/en/database/oracle/oracle-database/23/sqlrf/TO_NUMBER.html
-class ToNumber(Func):
-    """
-    转换为数值函数类。
-    
-    表示SQL中的TO_NUMBER/TO_DECIMAL函数。
-    用于将字符串转换为数值类型。
-    
-    参考：
-    - https://docs.snowflake.com/en/sql-reference/functions/to_decimal
-    - https://docs.oracle.com/en/database/oracle/oracle-database/23/sqlrf/TO_NUMBER.html
-    
-    转换为数值的特点：
-    - 字符串转换：将字符串转换为数值
-    - 格式支持：支持格式字符串
-    - 精度控制：支持精度和标度参数
-    - 本地化：支持本地化参数
-    """
-    arg_types = {
-        "this": True,      # 要转换的字符串（必需）
-        "format": False,   # 格式字符串（可选）
-        "nlsparam": False, # 本地化参数（可选）
-        "precision": False, # 精度（可选）
-        "scale": False,    # 标度（可选）
-    }
 
 
 # 参考：https://docs.snowflake.com/en/sql-reference/functions/to_double
@@ -13269,7 +13032,7 @@ class First(AggFunc):
     语法示例：
     - SELECT FIRST(column) FROM table GROUP BY category
     """
-    pass
+    arg_types = {"this": True, "expression": False}
 
 
 class Last(AggFunc):
@@ -13288,7 +13051,7 @@ class Last(AggFunc):
     语法示例：
     - SELECT LAST(column) FROM table GROUP BY category
     """
-    pass
+    arg_types = {"this": True, "expression": False}
 
 
 class FirstValue(AggFunc):
@@ -13876,6 +13639,11 @@ class WeekOfYear(Func):
     """返回指定日期在当年中第几周的函数"""
     _sql_names = ["WEEK_OF_YEAR", "WEEKOFYEAR"]
 
+class YearOfWeek(Func):
+    _sql_names = ["YEAR_OF_WEEK", "YEAROFWEEK"]
+
+class YearOfWeekIso(Func):
+    _sql_names = ["YEAR_OF_WEEK_ISO", "YEAROFWEEKISO"]
 
 # 月份间隔函数：计算两个日期之间的月份数差
 class MonthsBetween(Func):
@@ -13905,6 +13673,10 @@ class LastDay(Func, TimeUnit):
     _sql_names = ["LAST_DAY", "LAST_DAY_OF_MONTH"]
     # unit参数可以指定其他时间单位的"最后一天"概念
     arg_types = {"this": True, "unit": False}
+
+
+class PreviousDay(Func):
+    arg_types = {"this": True, "expression": True}
 
 
 class LaxBool(Func):
@@ -13972,6 +13744,10 @@ class TimestampTrunc(Func, TimeUnit):
     arg_types = {"this": True, "unit": True, "zone": False}
 
 
+class TimeSlice(Func, TimeUnit):
+    arg_types = {"this": True, "expression": True, "unit": True, "kind": False}
+    
+    
 # 时间加法函数：在时间值上添加间隔
 class TimeAdd(Func, TimeUnit):
     """在时间值上添加指定间隔的函数"""
@@ -14087,6 +13863,10 @@ class Encode(Func):
     arg_types = {"this": True, "charset": True}
 
 
+class EqualNull(Func):
+    arg_types = {"this": True, "expression": True}
+
+
 # 指数函数：计算e的指定次幂
 class Exp(Func):
     """计算自然对数底数e的指定次幂的数学函数"""
@@ -14198,6 +13978,8 @@ class Base64DecodeString(Func):
 # https://docs.snowflake.com/en/sql-reference/functions/base64_encode
 class Base64Encode(Func):
     arg_types = {"this": True, "max_line_length": False, "alphabet": False}
+
+
 # https://docs.snowflake.com/en/sql-reference/functions/try_base64_decode_binary
 class TryBase64DecodeBinary(Func):
     arg_types = {"this": True, "alphabet": False}
@@ -14261,6 +14043,9 @@ class GetExtract(Func):
     """从半结构化数据（JSON、VARIANT等）中提取指定路径值的Snowflake函数"""
     # this为数据源，expression为提取路径
     arg_types = {"this": True, "expression": True}
+    
+class Getbit(Func):
+    arg_types = {"this": True, "expression": True}
 
 
 # 最大值函数：返回多个值中的最大值
@@ -14272,6 +14057,16 @@ class Greatest(Func):
     is_var_len_args = True
 
 
+class GreatestIgnoreNulls(Func):
+    arg_types = {"expressions": True}
+    is_var_len_args = True
+
+
+class LeastIgnoreNulls(Func):
+    arg_types = {"expressions": True}
+    is_var_len_args = True
+    
+    
 # Trino溢出截断行为配置：控制聚合函数溢出时的行为
 # Trino的 `ON OVERFLOW TRUNCATE [filler_string] {WITH | WITHOUT} COUNT` 语法
 # 参考文档：https://trino.io/docs/current/functions/aggregate.html#listagg
@@ -14301,6 +14096,18 @@ class HexDecodeString(Func):
 # https://docs.snowflake.com/en/sql-reference/functions/hex_encode
 class HexEncode(Func):
     arg_types = {"this": True, "case": False}
+
+
+class Hour(Func):
+    pass
+
+
+class Minute(Func):
+    pass
+
+
+class Second(Func):
+    pass
 
 
 # T-SQL: https://learn.microsoft.com/en-us/sql/t-sql/functions/compress-transact-sql?view=sql-server-ver17
@@ -14393,6 +14200,10 @@ class IsInf(Func):
     _sql_names = ["IS_INF", "ISINF"]
 
 
+class IsNullValue(Func):
+    pass
+    
+    
 # JSON表达式：PostgreSQL的JSON数据类型表示
 # 参考文档：https://www.postgresql.org/docs/current/functions-json.html
 class JSON(Expression):
@@ -14492,7 +14303,7 @@ class FormatJson(Expression):
 
 
 class Format(Func):
-    arg_types = {"this": True, "expressions": True}
+    arg_types = {"this": True, "expressions": False}
     is_var_len_args = True
 
 
@@ -15044,6 +14855,7 @@ class MD5Digest(Func):
     # 与MD5不同，这个版本返回二进制数据而非十六进制字符串
     _sql_names = ["MD5_DIGEST"]
 
+
 # https://docs.snowflake.com/en/sql-reference/functions/md5_number_lower64
 class MD5NumberLower64(Func):
     pass
@@ -15053,12 +14865,12 @@ class MD5NumberLower64(Func):
 class MD5NumberUpper64(Func):
     pass
 
+
 class Median(AggFunc):
     """计算一组数值中位数的聚合函数"""
     pass
 
 
-# 最小值聚合函数：返回一组值中的最小值
 class Min(AggFunc):
     """返回一组值中最小值的聚合函数"""
     # 类似Max，支持多列比较
@@ -15066,20 +14878,20 @@ class Min(AggFunc):
     is_var_len_args = True
 
 
-# 月份提取函数：从日期中提取月份部分
 class Month(Func):
     """从日期中提取月份部分的函数"""
     pass
 
 
-# 月份加法函数：在日期上添加指定月数
+class Monthname(Func):
+    pass
+
 class AddMonths(Func):
     """在指定日期上添加指定月数的函数"""
     # expression为要添加的月数
     arg_types = {"this": True, "expression": True}
 
 
-# Oracle的NVL2函数：增强版的NULL值处理函数
 class Nvl2(Func):
     """Oracle的NVL2函数，根据第一个参数是否为NULL返回不同的值"""
     # 如果this不为NULL，返回true；如果this为NULL，返回false（可选）
@@ -15089,21 +14901,20 @@ class Nvl2(Func):
 class Ntile(AggFunc):
     arg_types = {"this": False}
 
+
 class Normalize(Func):
     """将Unicode字符串按指定形式进行规范化的函数"""
     # form指定规范化形式（NFC、NFD、NFKC、NFKD等）
     arg_types = {"this": True, "form": False, "is_casefold": False}
 
 
-# 字符串覆盖函数：在字符串的指定位置覆盖内容
 class Overlay(Func):
     """在字符串的指定位置覆盖另一个字符串的函数"""
     # from指定起始位置，for指定覆盖长度（可选）
     arg_types = {"this": True, "expression": True, "from": True, "for": False}
 
 
-# BigQuery机器学习预测函数：使用训练好的模型进行预测
-# 参考文档：https://cloud.google.com/bigquery/docs/reference/standard-sql/bigqueryml-syntax-predict#mlpredict_function
+# https://cloud.google.com/bigquery/docs/reference/standard-sql/bigqueryml-syntax-predict#mlpredict_function
 class Predict(Func):
     """BigQuery ML的预测函数，使用机器学习模型对数据进行预测"""
     # this为模型，expression为输入数据，params_struct为预测参数
@@ -15112,8 +14923,8 @@ class Predict(Func):
 # https://cloud.google.com/bigquery/docs/reference/standard-sql/bigqueryml-syntax-translate#mltranslate_function
 class MLTranslate(Func):
     arg_types = {"this": True, "expression": True, "params_struct": True}
-    
-# 时间点特征函数：获取指定时间点的特征数据
+
+
 # https://cloud.google.com/bigquery/docs/reference/standard-sql/bigqueryml-syntax-feature-time
 class FeaturesAtTime(Func):
     """在指定时间点获取特征数据的时间序列分析函数"""
@@ -15152,8 +14963,10 @@ class VectorSearch(Func):
         "options": False,
     }
 
+
 class Pi(Func):
     arg_types = {}
+
 
 class Pow(Binary, Func):
     """计算幂次方的数学函数，返回底数的指数次幂"""
@@ -15161,14 +14974,12 @@ class Pow(Binary, Func):
     _sql_names = ["POWER", "POW"]
 
 
-# 连续百分位数函数：计算连续分布的百分位数
 class PercentileCont(AggFunc):
     """计算连续分布百分位数的聚合函数，使用线性插值"""
     # expression为可选的排序表达式，用于指定计算基准
     arg_types = {"this": True, "expression": False}
 
 
-# 离散百分位数函数：计算离散分布的百分位数
 class PercentileDisc(AggFunc):
     """计算离散分布百分位数的聚合函数，返回实际存在的值"""
     # 与PercentileCont不同，不进行插值，只返回数据集中实际存在的值
@@ -15180,14 +14991,12 @@ class PercentRank(AggFunc):
     is_var_len_args = True
 
 
-# 分位数函数：计算指定分位数
 class Quantile(AggFunc):
     """计算指定分位数的聚合函数"""
     # quantile参数指定要计算的分位数（0-1之间的值）
     arg_types = {"this": True, "quantile": True}
 
 
-# 近似分位数函数：高效计算大数据集的近似分位数
 class ApproxQuantile(Quantile):
     """计算近似分位数的聚合函数，适用于大数据集的高效计算"""
     # accuracy控制精度，weight为权重（用于加权分位数计算）
@@ -15200,15 +15009,13 @@ class ApproxQuantile(Quantile):
     }
 
 
-# 季度提取函数：从日期中提取季度信息
 class Quarter(Func):
     """从日期中提取季度（1-4）的函数"""
     pass
 
 
-# 随机数生成函数：生成随机数
-# Teradata支持上下界参数
-# 参考文档：https://docs.teradata.com/r/Enterprise_IntelliFlex_VMware/SQL-Functions-Expressions-and-Predicates/Arithmetic-Trigonometric-Hyperbolic-Operators/Functions/RANDOM/RANDOM-Function-Syntax
+# https://docs.teradata.com/r/Enterprise_IntelliFlex_VMware/SQL-Functions-Expressions-and-Predicates/Arithmetic-Trigonometric-Hyperbolic-Operators/Functions/RANDOM/RANDOM-Function-Syntax
+# teradata lower and upper bounds
 class Rand(Func):
     """生成随机数的函数，支持指定范围"""
     _sql_names = ["RAND", "RANDOM"]
@@ -15216,14 +15023,12 @@ class Rand(Func):
     arg_types = {"this": False, "lower": False, "upper": False}
 
 
-# 正态分布随机数函数：生成符合正态分布的随机数
 class Randn(Func):
     """生成符合标准正态分布的随机数的函数"""
     # this为可选的种子值
     arg_types = {"this": False}
 
 
-# 范围生成函数：生成数值序列
 class RangeN(Func):
     """生成指定范围内数值序列的函数"""
     # expressions为序列参数，each控制是否为每行生成独立序列
@@ -15238,7 +15043,6 @@ class Rank(AggFunc):
     is_var_len_args = True
 
 
-# CSV读取函数：从CSV文件读取数据
 class ReadCSV(Func):
     """从CSV文件读取数据的函数，常用于数据导入"""
     _sql_names = ["READ_CSV"]
@@ -15248,14 +15052,17 @@ class ReadCSV(Func):
     arg_types = {"this": True, "expressions": False}
 
 
-# 函数式编程中的Reduce操作：对集合进行聚合计算
+class ReadParquet(Func):
+    is_var_len_args = True
+    arg_types = {"expressions": True}
+
+
 class Reduce(Func):
     """函数式编程中的reduce操作，对数组进行累积计算"""
     # initial为初始值，merge为合并函数，finish为最终处理函数
     arg_types = {"this": True, "initial": True, "merge": True, "finish": False}
 
 
-# 正则表达式提取函数：从字符串中提取匹配的子串
 class RegexpExtract(Func):
     """使用正则表达式从字符串中提取匹配内容的函数"""
     arg_types = {
@@ -15268,7 +15075,6 @@ class RegexpExtract(Func):
     }
 
 
-# 正则表达式全部提取函数：提取所有匹配项
 class RegexpExtractAll(Func):
     """使用正则表达式提取字符串中所有匹配项的函数"""
     # 参数与RegexpExtract相同，但返回所有匹配而非第一个
@@ -15282,7 +15088,7 @@ class RegexpExtractAll(Func):
     }
 
 
-# 正则表达式替换函数：使用正则表达式进行字符串替换
+
 class RegexpReplace(Func):
     """使用正则表达式进行字符串替换的函数"""
     arg_types = {
@@ -15292,10 +15098,10 @@ class RegexpReplace(Func):
         "position": False,      # 开始位置
         "occurrence": False,    # 替换第几个匹配
         "modifiers": False,     # 正则表达式修饰符（i、g、m等）
+        "single_replace": False,
     }
 
 
-# 正则表达式匹配函数：检查字符串是否匹配正则表达式
 class RegexpLike(Binary, Func):
     """检查字符串是否匹配正则表达式的函数"""
     # 继承Binary表示这是二元谓词操作
@@ -15303,7 +15109,6 @@ class RegexpLike(Binary, Func):
     arg_types = {"this": True, "expression": True, "flag": False}
 
 
-# 正则表达式不区分大小写匹配函数：忽略大小写的正则匹配
 class RegexpILike(Binary, Func):
     """不区分大小写的正则表达式匹配函数"""
     # 类似RegexpLike，但默认忽略大小写
@@ -15312,6 +15117,7 @@ class RegexpILike(Binary, Func):
 
 class RegexpFullMatch(Binary, Func):
     arg_types = {"this": True, "expression": True, "options": False}
+
 
 class RegexpInstr(Func):
     arg_types = {
@@ -15325,9 +15131,8 @@ class RegexpInstr(Func):
     }
 
 
-# 正则表达式分割函数：使用正则表达式分割字符串
-# 参考文档：https://spark.apache.org/docs/latest/api/python/reference/pyspark.sql/api/pyspark.sql.functions.split.html
-# limit是模式应用的次数限制
+# https://spark.apache.org/docs/latest/api/python/reference/pyspark.sql/api/pyspark.sql.functions.split.html
+# limit is the number of times a pattern is applied
 class RegexpSplit(Func):
     """使用正则表达式分割字符串的函数"""
     # limit控制最大分割次数，避免过度分割
@@ -15342,30 +15147,40 @@ class RegexpCount(Func):
         "parameters": False,
     }
 
+
+class RegrValx(Func):
+    arg_types = {"this": True, "expression": True}
+
+
+class RegrValy(Func):
+    arg_types = {"this": True, "expression": True}
+
+
 class Repeat(Func):
     """将字符串重复指定次数的函数"""
     # times指定重复次数
     arg_types = {"this": True, "times": True}
 
 
-# 字符串替换函数：简单的字符串替换
-# 某些方言如Snowflake支持两参数的replace（省略replacement）
+# Some dialects like Snowflake support two argument replace
 class Replace(Func):
     """字符串替换函数，将指定子串替换为新内容"""
     # replacement为可选，某些数据库支持只删除不替换
     arg_types = {"this": True, "expression": True, "replacement": False}
 
 
-# 四舍五入函数：数值舍入
-# 参考文档：https://learn.microsoft.com/en-us/sql/t-sql/functions/round-transact-sql?view=sql-server-ver16
-# SQL Server的第三个参数：如果不为0则表示截断而非舍入
+class Radians(Func):
+    pass
+
+
+# https://learn.microsoft.com/en-us/sql/t-sql/functions/round-transact-sql?view=sql-server-ver16
+# tsql third argument function == trunctaion if not 0
 class Round(Func):
     """数值四舍五入函数，支持指定小数位数和截断模式"""
     # truncate参数在SQL Server中控制是截断还是舍入
     arg_types = {"this": True, "decimals": False, "truncate": False}
 
 
-# 行号窗口函数：为结果集中的行分配连续序号
 class RowNumber(Func):
     """窗口函数，为查询结果的每一行分配连续的行号"""
     # this为可选，某些情况下可能需要额外参数
@@ -15376,7 +15191,6 @@ class SafeAdd(Func):
     arg_types = {"this": True, "expression": True}
 
 
-# 安全除法函数：避免除零错误的除法运算
 class SafeDivide(Func):
     """安全的除法函数，当除数为零时返回NULL而不是错误"""
     # 提供除零保护，避免运行时错误
@@ -15398,14 +15212,12 @@ class SafeConvertBytesToString(Func):
     pass
 
 
-# SHA-1哈希函数：计算SHA-1哈希值
 class SHA(Func):
     """计算SHA-1哈希值的函数"""
     # SHA1是SHA的别名
     _sql_names = ["SHA", "SHA1"]
 
 
-# SHA-2哈希函数：计算SHA-2系列哈希值
 class SHA2(Func):
     """计算SHA-2哈希值的函数，支持不同的哈希长度"""
     _sql_names = ["SHA2"]
@@ -15422,14 +15234,12 @@ class SHA2Digest(Func):
     arg_types = {"this": True, "length": False}
 
 
-# 符号函数：返回数值的符号
 class Sign(Func):
     """返回数值符号的函数，正数返回1，负数返回-1，零返回0"""
     # SIGNUM是某些数据库的别名
     _sql_names = ["SIGN", "SIGNUM"]
 
 
-# 数组排序函数：对数组元素进行排序
 class SortArray(Func):
 
     """对数组元素进行排序的函数"""
@@ -15444,6 +15254,7 @@ class Soundex(Func):
 # https://docs.snowflake.com/en/sql-reference/functions/soundex_p123
 class SoundexP123(Func):
     pass
+
 
 class Split(Func):
     """按指定分隔符分割字符串的函数"""
@@ -15460,9 +15271,8 @@ class SplitPart(Func):
     arg_types = {"this": True, "delimiter": False, "part_index": False}
 
 
-# 子字符串函数：提取字符串的子串
-# PostgreSQL中start参数可以省略
-# 参考文档：https://www.postgresql.org/docs/9.1/functions-string.html @ Table 9-6
+# Start may be omitted in the case of postgres
+# https://www.postgresql.org/docs/9.1/functions-string.html @ Table 9-6
 class Substring(Func):
     """提取字符串子串的函数"""
     _sql_names = ["SUBSTRING", "SUBSTR"]
@@ -15470,7 +15280,6 @@ class Substring(Func):
     arg_types = {"this": True, "start": False, "length": False}
 
 
-# 按分隔符索引的子字符串函数：MySQL特有的字符串处理函数
 class SubstringIndex(Func):
     """
     SUBSTRING_INDEX(str, delim, count) - MySQL的字符串分割索引函数
@@ -15482,14 +15291,12 @@ class SubstringIndex(Func):
     arg_types = {"this": True, "delimiter": True, "count": True}
 
 
-# 标准哈希函数：计算标准化的哈希值
 class StandardHash(Func):
     """计算标准化哈希值的函数，确保跨平台一致性"""
     # expression为可选的哈希算法参数
     arg_types = {"this": True, "expression": False}
 
 
-# 前缀匹配函数：检查字符串是否以指定前缀开始
 class StartsWith(Func):
     """检查字符串是否以指定前缀开始的函数"""
     # 不同数据库使用不同的函数名
@@ -15497,14 +15304,12 @@ class StartsWith(Func):
     arg_types = {"this": True, "expression": True}
 
 
-# 后缀匹配函数：检查字符串是否以指定后缀结束
 class EndsWith(Func):
     """检查字符串是否以指定后缀结束的函数"""
     _sql_names = ["ENDS_WITH", "ENDSWITH"]
     arg_types = {"this": True, "expression": True}
 
 
-# 字符串位置查找函数：在字符串中查找子串的位置
 class StrPosition(Func):
     """在字符串中查找子串位置的函数，返回第一次出现的索引"""
     arg_types = {
@@ -15526,30 +15331,28 @@ class Search(Func):
         "search_mode": False,  # Snowflake: OR | AND
     }
 
+
 class StrToDate(Func):
     """将日期字符串转换为日期对象的函数"""
     # format为可选，用于指定日期格式；safe控制错误处理模式
     arg_types = {"this": True, "format": False, "safe": False}
 
 
-# 字符串转时间函数：将时间字符串转换为时间对象
 class StrToTime(Func):
     """将时间字符串转换为时间对象的函数"""
     # format通常是必需的，zone用于时区处理，safe控制异常处理
     arg_types = {"this": True, "format": True, "zone": False, "safe": False}
 
 
-# 字符串转Unix时间戳函数：将日期时间字符串转换为Unix时间戳
-# Spark允许不带参数的unix_timestamp()调用
-# 参考文档：https://spark.apache.org/docs/3.1.3/api/python/reference/api/pyspark.sql.functions.unix_timestamp.html
+# Spark allows unix_timestamp()
+# https://spark.apache.org/docs/3.1.3/api/python/reference/api/pyspark.sql.functions.unix_timestamp.html
 class StrToUnix(Func):
     """将日期时间字符串转换为Unix时间戳的函数"""
     # this和format都是可选的，支持当前时间和默认格式的情况
     arg_types = {"this": False, "format": False}
 
 
-# 字符串转映射函数：将键值对字符串解析为映射对象
-# 参考文档：https://prestodb.io/docs/current/functions/string.html
+# https://prestodb.io/docs/current/functions/string.html
 # https://spark.apache.org/docs/latest/api/sql/index.html#str_to_map
 class StrToMap(Func):
     """将键值对字符串解析为映射对象的函数"""
@@ -15561,21 +15364,18 @@ class StrToMap(Func):
     }
 
 
-# 数字转字符串函数：将数值按指定格式转换为字符串
 class NumberToStr(Func):
     """将数值按指定格式转换为字符串的函数"""
     # culture用于本地化格式（如千位分隔符、小数点符号等）
     arg_types = {"this": True, "format": True, "culture": False}
 
 
-# 进制转换函数：将指定进制的数字字符串转换为十进制
 class FromBase(Func):
     """将指定进制的数字字符串转换为十进制数值的函数"""
     # expression指定源数据的进制基数
     arg_types = {"this": True, "expression": True}
 
 
-# 空格生成函数：生成指定数量的空格字符
 class Space(Func):
     """
     SPACE(n) → 生成由n个空白字符组成的字符串
@@ -15583,7 +15383,6 @@ class Space(Func):
     pass
 
 
-# 结构体构造函数：创建结构化数据对象
 class Struct(Func):
     """创建结构体（记录）数据类型的函数"""
     # expressions包含结构体的字段定义，支持可变数量的字段
@@ -15592,16 +15391,13 @@ class Struct(Func):
     is_var_len_args = True
 
 
-# 结构体字段提取函数：从结构体中提取指定字段
 class StructExtract(Func):
     """从结构体对象中提取指定字段值的函数"""
     # expression指定要提取的字段名或索引
     arg_types = {"this": True, "expression": True}
 
 
-# 字符串插入/替换函数：在指定位置插入或替换字符串
-# SQL Server的STUFF和Snowflake的INSERT函数功能相同
-# 参考文档：https://learn.microsoft.com/en-us/sql/t-sql/functions/stuff-transact-sql?view=sql-server-ver16
+# https://learn.microsoft.com/en-us/sql/t-sql/functions/stuff-transact-sql?view=sql-server-ver16
 # https://docs.snowflake.com/en/sql-reference/functions/insert
 class Stuff(Func):
     """在字符串的指定位置插入或替换内容的函数"""
@@ -15610,53 +15406,45 @@ class Stuff(Func):
     arg_types = {"this": True, "start": True, "length": True, "expression": True}
 
 
-# 求和聚合函数：计算数值的总和
 class Sum(AggFunc):
     """计算数值总和的聚合函数"""
     pass
 
 
-# 平方根函数：计算数值的平方根
 class Sqrt(Func):
     """计算平方根的数学函数"""
     pass
 
 
-# 标准差聚合函数：计算数据的标准差
 class Stddev(AggFunc):
     """计算标准差的聚合函数"""
     # STDEV是某些数据库的简写形式
     _sql_names = ["STDDEV", "STDEV"]
 
 
-# 总体标准差函数：计算总体标准差
 class StddevPop(AggFunc):
     """计算总体标准差的聚合函数（分母为N）"""
     pass
 
 
-# 样本标准差函数：计算样本标准差
 class StddevSamp(AggFunc):
     """计算样本标准差的聚合函数（分母为N-1）"""
     pass
 
 
-# BigQuery时间构造函数：创建时间对象
-# 参考文档：https://cloud.google.com/bigquery/docs/reference/standard-sql/time_functions#time
+# https://cloud.google.com/bigquery/docs/reference/standard-sql/time_functions#time
 class Time(Func):
     """创建或转换时间对象的函数"""
     # this和zone都是可选的，支持多种时间创建方式
     arg_types = {"this": False, "zone": False}
 
 
-# 时间转字符串函数：将时间对象格式化为字符串
 class TimeToStr(Func):
     """将时间对象按指定格式转换为字符串的函数"""
     # culture用于本地化格式，zone用于时区转换
     arg_types = {"this": True, "format": True, "culture": False, "zone": False}
 
 
-# 时间转时间字符串函数：简化的时间字符串转换
 class TimeToTimeStr(Func):
     """将时间对象转换为标准时间字符串格式的函数"""
     pass
@@ -15687,7 +15475,6 @@ class TimeStrToUnix(Func):
     pass
 
 
-# 字符串修整函数：去除字符串两端的空白字符或指定字符
 class Trim(Func):
     """去除字符串两端空白字符或指定字符的函数"""
     arg_types = {
@@ -15767,23 +15554,20 @@ class Unicode(Func):
     pass
 
 
-# BigQuery Unix日期函数：将日期转换为Unix日期（自1970-01-01的天数）
-# 参考文档：https://cloud.google.com/bigquery/docs/reference/standard-sql/date_functions#unix_date
+# https://cloud.google.com/bigquery/docs/reference/standard-sql/date_functions#unix_date
 class UnixDate(Func):
     """将日期转换为Unix日期数值的函数（自1970-01-01的天数）"""
     pass
 
 
-# Unix时间戳转字符串函数：将Unix时间戳格式化为字符串
 class UnixToStr(Func):
     """将Unix时间戳按指定格式转换为字符串的函数"""
     # format为可选，默认使用标准格式
     arg_types = {"this": True, "format": False}
 
 
-# Unix时间戳转时间函数：将Unix时间戳转换为时间对象
-# Presto有特殊的zone/hours/minutes参数
-# 参考文档：https://prestodb.io/docs/current/functions/datetime.html
+# https://prestodb.io/docs/current/functions/datetime.html
+# presto has weird zone/hours/minutes
 class UnixToTime(Func):
     """将Unix时间戳转换为时间对象的函数"""
     arg_types = {
@@ -15841,31 +15625,36 @@ class Uuid(Func):
     arg_types = {"this": False, "name": False}
 
 
-# 从组件构造时间戳函数：通过年月日时分秒等组件创建时间戳
+TIMESTAMP_PARTS = {
+    "year": False,
+    "month": False,
+    "day": False,
+    "hour": False,
+    "min": False,
+    "sec": False,
+    "nano": False,
+}
+
+
 class TimestampFromParts(Func):
     """通过年、月、日、时、分、秒等组件构造时间戳对象的函数"""
     _sql_names = ["TIMESTAMP_FROM_PARTS", "TIMESTAMPFROMPARTS"]
     arg_types = {
-        "year": True,    # 年份（必需）
-        "month": True,   # 月份（必需）
-        "day": True,     # 日期（必需）
-        "hour": True,    # 小时（必需）
-        "min": True,     # 分钟（必需）
-        "sec": True,     # 秒数（必需）
-        "nano": False,   # 纳秒（可选，用于高精度时间）
-        "zone": False,   # 时区（可选）
-        "milli": False,  # 毫秒（可选，与nano二选一）
+        **TIMESTAMP_PARTS,
+        "zone": False,
+        "milli": False,
+        "this": False,
+        "expression": False,
     }
 
 
-# 大写转换函数：将字符串转换为大写
+
 class Upper(Func):
     """将字符串转换为大写的函数"""
     # UCASE是某些数据库（如MySQL）的别名
     _sql_names = ["UPPER", "UCASE"]
 
 
-# 相关系数聚合函数：计算两个变量的相关系数
 class Corr(Binary, AggFunc):
     """计算两个数值列相关系数的聚合函数"""
     # 继承Binary表示需要两个输入列
@@ -15877,21 +15666,22 @@ class CumeDist(AggFunc):
     is_var_len_args = True
 
 
-# 方差聚合函数：计算数据的方差（样本方差）
 class Variance(AggFunc):
     """计算样本方差的聚合函数"""
     # 多种函数名对应不同数据库的实现，但都计算样本方差
     _sql_names = ["VARIANCE", "VARIANCE_SAMP", "VAR_SAMP"]
 
 
-# 总体方差聚合函数：计算总体方差
 class VariancePop(AggFunc):
     """计算总体方差的聚合函数（分母为N）"""
     # 与样本方差的区别是分母为N而不是N-1
     _sql_names = ["VARIANCE_POP", "VAR_POP"]
 
 
-# 样本协方差聚合函数：计算两个变量的样本协方差
+class WidthBucket(Func):
+    arg_types = {"this": True, "min_value": True, "max_value": True, "num_buckets": True}
+
+
 class CovarSamp(Binary, AggFunc):
     """计算两个数值列样本协方差的聚合函数"""
     pass
@@ -15916,7 +15706,10 @@ class WeekStart(Expression):
     pass
 
 
-# XML元素构造函数：创建XML元素
+class NextDay(Func):
+    arg_types = {"this": True, "expression": True}
+
+
 class XMLElement(Func):
     """创建XML元素的函数"""
     _sql_names = ["XMLELEMENT"]
@@ -15969,7 +15762,8 @@ class Merge(DML):
     arg_types = {
         "this": True,      # 目标表
         "using": True,     # 源表或查询
-        "on": True,        # 匹配条件
+        "on": False,       # 匹配条件
+        "using_cond": False,
         "whens": True,     # WHEN子句集合
         "with": False,     # WITH子句（CTE）
         "returning": False, # RETURNING子句
@@ -15987,15 +15781,14 @@ class When(Expression):
     }
 
 
-# WHEN子句集合：包装一个或多个WHEN子句
+
 class Whens(Expression):
     """包装一个或多个WHEN [NOT] MATCHED [...] 子句的表达式"""
     # expressions包含多个When表达式
     arg_types = {"expressions": True}
 
 
-# 序列下一个值函数：获取序列的下一个值
-# 参考文档：https://docs.oracle.com/javadb/10.8.3.0/ref/rrefsqljnextvaluefor.html
+# https://docs.oracle.com/javadb/10.8.3.0/ref/rrefsqljnextvaluefor.html
 # https://learn.microsoft.com/en-us/sql/t-sql/functions/next-value-for-transact-sql?view=sql-server-ver16
 class NextValueFor(Func):
     """获取序列下一个值的函数"""
@@ -16179,14 +15972,12 @@ def _to_s(node: t.Any, verbose: bool = False, level: int = 0, repr_str: bool = F
     return indent.join(textwrap.dedent(str(node).strip("\n")).splitlines())
 
 
-# 类型检查辅助函数：判断表达式类型是否匹配预期
 def _is_wrong_expression(expression, into):
     """检查表达式是否为错误的类型，需要转换为目标类型"""
     # 如果expression是Expression但不是目标类型into的实例，则认为类型错误
     return isinstance(expression, Expression) and not isinstance(expression, into)
 
 
-# 表达式构建器应用函数：用于流畅API的核心实现
 def _apply_builder(
     expression,      # 要设置的表达式
     instance,        # 目标实例
@@ -16359,7 +16150,6 @@ def _apply_conjunction_builder(
     return inst
 
 
-# CTE构建器应用函数：处理公共表表达式的创建和添加
 def _apply_cte_builder(
     instance: E,               # 目标查询实例
     alias: ExpOrStr,          # CTE别名
@@ -16466,7 +16256,6 @@ def _apply_set_operation(
     )
 
 
-# UNION操作构建函数：创建SQL UNION操作的语法树
 def union(
     *expressions: ExpOrStr,      # 要进行UNION的表达式
     distinct: bool = True,       # 是否使用DISTINCT（默认UNION DISTINCT）
@@ -16704,7 +16493,6 @@ def update(
     return update_expr
 
 
-# DELETE语句构建函数：创建数据删除语句
 def delete(
     table: ExpOrStr,                        # 要删除数据的表
     where: t.Optional[ExpOrStr] = None,     # WHERE条件
@@ -16744,7 +16532,6 @@ def delete(
     return delete_expr
 
 
-# INSERT语句构建函数：创建数据插入语句
 def insert(
     expression: ExpOrStr,                                    # 要插入的数据表达式
     into: ExpOrStr,                                         # 目标表
@@ -16798,7 +16585,6 @@ def insert(
     return insert
 
 
-# MERGE语句构建函数：创建数据合并语句
 def merge(
     *when_exprs: ExpOrStr,                  # 可变数量的WHEN子句
     into: ExpOrStr,                        # 目标表
@@ -16864,10 +16650,7 @@ def merge(
 
 # 逻辑条件构建函数：创建基础条件表达式
 def condition(
-    expression: ExpOrStr,           # 要解析的表达式
-    dialect: DialectType = None,    # SQL方言
-    copy: bool = True,              # 是否复制表达式
-    **opts
+    expression: ExpOrStr, dialect: DialectType = None, copy: bool = True, **opts
 ) -> Condition:
     """
     初始化逻辑条件表达式
@@ -17009,13 +16792,7 @@ def xor(
     return t.cast(Condition, _combine(expressions, Xor, dialect, copy=copy, wrap=wrap, **opts))
 
 
-# NOT逻辑运算函数：用NOT操作符包装条件
-def not_(
-    expression: ExpOrStr,            # 要否定的表达式
-    dialect: DialectType = None,     # SQL方言
-    copy: bool = True,               # 是否复制表达式
-    **opts
-) -> Not:
+def not_(expression: ExpOrStr, dialect: DialectType = None, copy: bool = True, **opts) -> Not:
     """
     用NOT操作符包装条件
 
@@ -17197,12 +16974,8 @@ def to_interval(interval: str | Literal) -> Interval:
     return interval
 
 
-# 表对象构建函数：从SQL路径创建Table表达式
 def to_table(
-    sql_path: str | Table,              # SQL路径字符串或现有Table对象
-    dialect: DialectType = None,        # SQL方言
-    copy: bool = True,                  # 是否复制现有Table对象
-    **kwargs                            # 额外的Table属性
+    sql_path: str | Table, dialect: DialectType = None, copy: bool = True, **kwargs
 ) -> Table:
     """
     从`[catalog].[schema].[table]`SQL路径创建表表达式，目录和模式是可选的。
@@ -17666,7 +17439,6 @@ def var(name: t.Optional[ExpOrStr]) -> Var:
     return Var(this=name)
 
 
-# 表重命名函数：构建ALTER TABLE RENAME语句
 def rename_table(
     old_name: str | Table,          # 旧表名
     new_name: str | Table,          # 新表名
@@ -17699,7 +17471,6 @@ def rename_table(
     )
 
 
-# 列重命名函数：构建ALTER TABLE RENAME COLUMN语句
 def rename_column(
     table_name: str | Table,                    # 表名
     old_column_name: str | Column,              # 旧列名
@@ -17811,8 +17582,7 @@ def convert(value: t.Any, copy: bool = False) -> Expression:
                 expressions=[
                     # 为每个字段创建属性等号表达式：field_name = field_value
                     PropertyEQ(
-                        this=to_identifier(k), 
-                        expression=convert(getattr(value, k), copy=copy)
+                        this=to_identifier(k), expression=convert(getattr(value, k), copy=copy)
                     )
                     for k in value._fields
                 ]
@@ -17924,7 +17694,26 @@ def replace_tree(
     return new_node
 
 
-# 列表名提取函数：从表达式中提取所有通过列引用的表名
+def find_tables(expression: Expression) -> t.Set[Table]:
+    """
+    Find all tables referenced in a query.
+
+    Args:
+        expressions: The query to find the tables in.
+
+    Returns:
+        A set of all the tables.
+    """
+    from sqlglot.optimizer.scope import traverse_scope
+
+    return {
+        table
+        for scope in traverse_scope(expression)
+        for table in scope.tables
+        if table.name and table.name not in scope.cte_sources
+    }
+
+
 def column_table_names(expression: Expression, exclude: str = "") -> t.Set[str]:
     """
     返回表达式中通过列引用的所有表名
@@ -17953,7 +17742,6 @@ def column_table_names(expression: Expression, exclude: str = "") -> t.Set[str]:
     }
 
 
-# 表名获取函数：将表对象转换为完整的字符串名称
 def table_name(
     table: Table | str,              # 表表达式节点或字符串
     dialect: DialectType = None,     # 生成表名的SQL方言
@@ -17998,7 +17786,6 @@ def table_name(
     )
 
 
-# 表名标准化函数：返回去除引号的大小写标准化表名
 def normalize_table_name(
     table: str | Table,              # 要标准化的表
     dialect: DialectType = None,     # 标准化规则使用的方言
@@ -18305,7 +18092,6 @@ def func(name: str, *args, copy: bool = True, dialect: DialectType = None, **kwa
     return function
 
 
-# CASE语句构建函数：初始化CASE条件表达式
 def case(
     expression: t.Optional[ExpOrStr] = None,  # 可选的输入表达式（非所有方言都支持）
     **opts,                                   # 解析expression的额外关键字参数
@@ -18335,7 +18121,6 @@ def case(
     return Case(this=this, ifs=[])
 
 
-# 数组构建函数：创建数组表达式
 def array(
     *expressions: ExpOrStr,          # 可变数量的表达式参数
     copy: bool = True,               # 是否复制参数表达式
@@ -18370,7 +18155,6 @@ def array(
     )
 
 
-# 元组构建函数：创建元组表达式
 def tuple_(
     *expressions: ExpOrStr,          # 可变数量的表达式参数
     copy: bool = True,               # 是否复制参数表达式
@@ -18405,7 +18189,6 @@ def tuple_(
     )
 
 
-# 真值常量函数：返回TRUE布尔表达式
 def true() -> Boolean:
     """
     返回真值布尔表达式
@@ -18416,7 +18199,6 @@ def true() -> Boolean:
     return Boolean(this=True)
 
 
-# 假值常量函数：返回FALSE布尔表达式  
 def false() -> Boolean:
     """
     返回假值布尔表达式
@@ -18427,7 +18209,6 @@ def false() -> Boolean:
     return Boolean(this=False)
 
 
-# 空值常量函数：返回NULL表达式
 def null() -> Null:
     """
     返回NULL表达式

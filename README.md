@@ -1,4 +1,3 @@
-
 本项目是基于sqlglot的SQL解析器，其目的是在sqlglot基础上扩展对于Gaussdb、DM、Greeplum等数据库方言的适配能力。
 
 ![SQLGlot logo](sqlglot.png)

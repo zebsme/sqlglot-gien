@@ -509,6 +509,9 @@ class Generator(metaclass=_Generator):
     # Prefix which is appended to exp.Table expressions in MATCH AGAINST
     MATCH_AGAINST_TABLE_PREFIX: t.Optional[str] = None
 
+    # Whether to include the VARIABLE keyword for SET assignments
+    SET_ASSIGNMENT_REQUIRES_VARIABLE_KEYWORD = False
+
     TYPE_MAPPING = {
         exp.DataType.Type.DATETIME2: "TIMESTAMP",
         exp.DataType.Type.NCHAR: "CHAR",
@@ -1481,7 +1484,7 @@ class Generator(metaclass=_Generator):
     def delete_sql(self, expression: exp.Delete) -> str:
         this = self.sql(expression, "this")
         this = f" FROM {this}" if this else ""
-        using = self.sql(expression, "using")
+        using = self.expressions(expression, key="using")
         using = f" USING {using}" if using else ""
         cluster = self.sql(expression, "cluster")
         cluster = f" {cluster}" if cluster else ""
@@ -1955,10 +1958,11 @@ class Generator(metaclass=_Generator):
         on_conflict = self.sql(expression, "conflict")
         on_conflict = f" {on_conflict}" if on_conflict else ""
         by_name = " BY NAME" if expression.args.get("by_name") else ""
+        default_values = "DEFAULT VALUES" if expression.args.get("default") else ""
         returning = self.sql(expression, "returning")
 
         if self.RETURNING_END:
-            expression_sql = f"{expression_sql}{on_conflict}{returning}"
+            expression_sql = f"{expression_sql}{on_conflict}{default_values}{returning}"
         else:
             expression_sql = f"{returning}{expression_sql}{on_conflict}"
 
@@ -2222,6 +2226,7 @@ class Generator(metaclass=_Generator):
                 and (alias or isinstance(expression.parent, (exp.From, exp.Table)))
                 else values
             )
+            values = self.query_modifiers(expression, values)
             return f"{values} AS {alias}" if alias else values
 
         # Converts `VALUES...` expression into a series of select unions.
@@ -2439,7 +2444,10 @@ class Generator(metaclass=_Generator):
 
     def setitem_sql(self, expression: exp.SetItem) -> str:
         kind = self.sql(expression, "kind")
-        kind = f"{kind} " if kind else ""
+        if not self.SET_ASSIGNMENT_REQUIRES_VARIABLE_KEYWORD and kind == "VARIABLE":
+            kind = ""
+        else:
+            kind = f"{kind} " if kind else ""
         this = self.sql(expression, "this")
         expressions = self.expressions(expression)
         collate = self.sql(expression, "collate")
@@ -2528,6 +2536,12 @@ class Generator(metaclass=_Generator):
 
     def boolean_sql(self, expression: exp.Boolean) -> str:
         return "TRUE" if expression.this else "FALSE"
+
+    def booland_sql(self, expression: exp.Booland) -> str:
+        return f"(({self.sql(expression, 'this')}) AND ({self.sql(expression, 'expression')}))"
+
+    def boolor_sql(self, expression: exp.Boolor) -> str:
+        return f"(({self.sql(expression, 'this')}) OR ({self.sql(expression, 'expression')}))"
 
     def order_sql(self, expression: exp.Order, flat: bool = False) -> str:
         this = self.sql(expression, "this")
@@ -4076,8 +4090,14 @@ class Generator(metaclass=_Generator):
 
         this = self.sql(table)
         using = f"USING {self.sql(expression, 'using')}"
-        on = f"ON {self.sql(expression, 'on')}"
         whens = self.sql(expression, "whens")
+
+        on = self.sql(expression, "on")
+        on = f"ON {on}" if on else ""
+
+        if not on:
+            on = self.expressions(expression, key="using_cond")
+            on = f"USING ({on})" if on else ""
 
         returning = self.sql(expression, "returning")
         if returning:
@@ -4242,10 +4262,12 @@ class Generator(metaclass=_Generator):
     def comprehension_sql(self, expression: exp.Comprehension) -> str:
         this = self.sql(expression, "this")
         expr = self.sql(expression, "expression")
+        position = self.sql(expression, "position")
+        position = f", {position}" if position else ""
         iterator = self.sql(expression, "iterator")
         condition = self.sql(expression, "condition")
         condition = f" IF {condition}" if condition else ""
-        return f"{this} FOR {expr} IN {iterator}{condition}"
+        return f"{this} FOR {expr}{position} IN {iterator}{condition}"
 
     def columnprefix_sql(self, expression: exp.ColumnPrefix) -> str:
         return f"{self.sql(expression, 'this')}({self.sql(expression, 'expression')})"
