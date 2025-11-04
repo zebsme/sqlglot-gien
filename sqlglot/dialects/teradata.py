@@ -146,7 +146,7 @@ class Teradata(Dialect):
             "TOP": TokenType.TOP,            # TOP 限制关键字
             "UPD": TokenType.UPDATE,         # UPDATE 的缩写形式
             "XMLAGG": TokenType.XMLAGG,      # XMLAGG 函数关键字
-
+            "MOD": TokenType.MOD,            # MOD 操作符
         }
         # 移除 Oracle 风格的提示注释支持
         KEYWORDS.pop("/*+")
@@ -208,27 +208,26 @@ class Teradata(Dialect):
         # Teradata 数据类型关键字列表
         # 用于识别 expr(datatype) 语法中的数据类型
         DATA_TYPE_KEYWORDS = {
-            # 标准SQL数值类型
-            "INT", "INTEGER", "BIGINT", "SMALLINT", 
-            "DECIMAL", "NUMERIC", "DEC", "NUM",
-            "FLOAT", "DOUBLE PRECISION", "REAL",
-            # 标准SQL字符类型
-            "VARCHAR", "CHAR", "CHARACTER", "TEXT", "STRING",
-            "NVARCHAR", "NCHAR", "NATIONAL",
-            # 标准SQL日期时间类型
-            "DATE", "TIME", "TIMESTAMP", "DATETIME",
+            # ARRAY 
+            "ARRAY", "VARRAY",
+            # BYTE
+            "BLOB", "BYTE", "VARBYTE",
+            # NUMERIC
+            "BIGINT", "BYTEINT", "DECIMAL",
+            "DOUBLE PRECISION", "FLOAT", 
+            "INTEGER", "NUMBER", "NUMERIC", "REAL", "SMALLINT", 
+            # DATETIME
+            "DATE", "TIME", "TIMESTAMP", 
+            # INTERVAL
             "INTERVAL",
-            # 标准SQL其他类型
-            "BOOLEAN", "BOOL", "BIT",
-            "BINARY", "VARBINARY", "BLOB", "CLOB",
-            "JSON", "XML",
-            # Teradata特有类型
-            "BYTEINT", "VARBYTE", 
-            "PERIOD", "GEOMETRY", "ST_GEOMETRY",
-            "GRAPHIC", "VARGRAPHIC",
-            "LONG", "LONGVARCHAR", "LONGVARBINARY",
-            "ARRAY", "MULTISET", "VARIANT",
-            "SYSUDTLIB",
+            # CHARACTER
+            "CHAR", "CHARACTER", "CHARACTER SET",
+            "CLOB", "CHAR VARYING", "LONG VARCHAR", "VARCHAR",
+            # PERIOD
+            "PERIOD", 
+            # Complex Data Types
+            "GEOMETRY", "ST_GEOMETRY", "GRAPHIC", "VARGRAPHIC",
+            "JSON", "XML", "MULTISET", "VARIANT", "SYSUDTLIB",
         }
 
         # 函数标记集合，移除 REPLACE 因为在 Teradata 中它是语句关键字

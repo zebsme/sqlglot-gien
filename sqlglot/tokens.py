@@ -402,7 +402,6 @@ class TokenType(AutoName):
     SEMI = auto()
     SEPARATOR = auto()
     SEQUENCE = auto()
-    CONTENT = auto()
     XMLAGG = auto()
     SERDE_PROPERTIES = auto()
     SET = auto()
@@ -997,7 +996,6 @@ class Tokenizer(metaclass=_Tokenizer):
         "VECTOR": TokenType.VECTOR,
         "STRUCT": TokenType.STRUCT,
         "SEQUENCE": TokenType.SEQUENCE,
-        "CONTENT": TokenType.CONTENT,
         "XMLAGG": TokenType.XMLAGG,
         "VARIANT": TokenType.VARIANT,
         "ALTER": TokenType.ALTER,

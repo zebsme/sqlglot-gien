@@ -132,7 +132,7 @@ class Expression(metaclass=_Expression):
         """
         # 首先检查类型是否完全相同，然后比较哈希值
         # 使用 type(self) is type(other) 而不是 isinstance 确保严格的类型匹配
-        return type(self) is type(other) and hash(self) == hash(other)
+        return self is other or (type(self) is type(other) and hash(self) == hash(other))
 
     def __hash__(self) -> int:
         """
@@ -4480,6 +4480,7 @@ class Insert(DDL, DML):
         "partition": False,   # 分区信息
         "settings": False,    # 插入设置
         "source": False,      # 数据源表达式
+        "default": False,
     }
 
     def with_(
@@ -9208,7 +9209,7 @@ class DataType(Expression):
     FLOAT_TYPES = {
         Type.DOUBLE,    # 双精度浮点
         Type.FLOAT,     # 单精度浮点
-	Type.DECFLOAT,
+        Type.DECFLOAT,
     }
 
     # 实数类型集合：包含浮点和精确数值类型
@@ -9220,7 +9221,7 @@ class DataType(Expression):
         Type.DECIMAL64,         # 64位小数
         Type.DECIMAL128,        # 128位小数
         Type.DECIMAL256,        # 256位小数
-	Type.DECFLOAT,
+        Type.DECFLOAT,
         Type.MONEY,             # 货币类型
         Type.SMALLMONEY,        # 小货币类型
         Type.UDECIMAL,          # 无符号小数
@@ -15648,6 +15649,17 @@ class TimestampFromParts(Func):
     }
 
 
+class TimestampLtzFromParts(Func):
+    _sql_names = ["TIMESTAMP_LTZ_FROM_PARTS", "TIMESTAMPLTZFROMPARTS"]
+    arg_types = TIMESTAMP_PARTS.copy()
+
+
+class TimestampTzFromParts(Func):
+    _sql_names = ["TIMESTAMP_TZ_FROM_PARTS", "TIMESTAMPTZFROMPARTS"]
+    arg_types = {
+        **TIMESTAMP_PARTS,
+        "zone": False,
+    }
 
 class Upper(Func):
     """将字符串转换为大写的函数"""
