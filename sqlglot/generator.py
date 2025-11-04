@@ -592,6 +592,7 @@ class Generator(metaclass=_Generator):
         exp.EnviromentProperty: exp.Properties.Location.POST_SCHEMA,
         exp.ExecuteAsProperty: exp.Properties.Location.POST_SCHEMA,
         exp.ExternalProperty: exp.Properties.Location.POST_CREATE,
+        exp.EnableRowMovementProperty: exp.Properties.Location.POST_SCHEMA,
         exp.FallbackProperty: exp.Properties.Location.POST_NAME,
         exp.FileFormatProperty: exp.Properties.Location.POST_WITH,
         exp.FreespaceProperty: exp.Properties.Location.POST_NAME,
@@ -616,6 +617,8 @@ class Generator(metaclass=_Generator):
         exp.OnCommitProperty: exp.Properties.Location.POST_EXPRESSION,
         exp.Order: exp.Properties.Location.POST_SCHEMA,
         exp.OutputModelProperty: exp.Properties.Location.POST_SCHEMA,
+        exp.PartitionByListProperty: exp.Properties.Location.POST_SCHEMA,
+        exp.PartitionByRangeProperty: exp.Properties.Location.POST_SCHEMA,
         exp.PartitionedByProperty: exp.Properties.Location.POST_WITH,
         exp.PartitionedOfProperty: exp.Properties.Location.POST_SCHEMA,
         exp.PrimaryKey: exp.Properties.Location.POST_SCHEMA,
@@ -3611,6 +3614,13 @@ class Generator(metaclass=_Generator):
 
         return f"SET {exprs}"
 
+    def alterowner_sql(self, expression: exp.AlterOwner) -> str:
+        owner = self.sql(expression, "expression")
+        return f"OWNER TO {owner}"
+
+    def enablerowmovementproperty_sql(self, expression: exp.EnableRowMovementProperty) -> str:
+        return "ENABLE ROW MOVEMENT"
+
     def alter_sql(self, expression: exp.Alter) -> str:
         actions = expression.args["actions"]
 
@@ -4063,10 +4073,18 @@ class Generator(metaclass=_Generator):
 
         then_expression = expression.args.get("then")
         if isinstance(then_expression, exp.Insert):
-            this = self.sql(then_expression, "this")
-            this = f"INSERT {this}" if this else "INSERT"
-            then = self.sql(then_expression, "expression")
-            then = f"{this} VALUES {then}" if then else this
+            columns = self.sql(then_expression, "this")
+            insert_head = f"INSERT {columns}" if columns else "INSERT"
+            expr = then_expression.expression
+            if expr:
+                if isinstance(expr, exp.Subquery):
+                    select_sql = self.sql(expr, "this") or self.sql(expr)
+                    then = f"{insert_head} {select_sql}"
+                else:
+                    values_sql = self.sql(then_expression, "expression")
+                    then = f"{insert_head} VALUES {values_sql}"
+            else:
+                then = insert_head
         elif isinstance(then_expression, exp.Update):
             if isinstance(then_expression.args.get("expressions"), exp.Star):
                 then = f"UPDATE {self.sql(then_expression, 'expressions')}"

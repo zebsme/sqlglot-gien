@@ -9976,13 +9976,27 @@ class Parser(metaclass=_Parser):
                     # INSERT *：星号场景直接封装 Insert 节点
                     then: t.Optional[exp.Expression] = self.expression(exp.Insert, this=this)
                 else:
-                    # INSERT ROW 或 INSERT <values> [VALUES (...)] 两种形式
+                    # INSERT ROW 或 INSERT <values> [VALUES (...)] / INSERT <cols> (SELECT ...)
+                    insert_columns = (
+                        exp.var("ROW")
+                        if self._match_text_seq("ROW")
+                        else self._parse_value(values=False)
+                    )
+                    insert_expression: t.Optional[exp.Expression] = None
+                    if self._match_text_seq("VALUES"):
+                        insert_expression = self._parse_value()
+                    else:
+                        select_expr: t.Optional[exp.Expression] = None
+                        if self._curr and self._curr.token_type == TokenType.L_PAREN:
+                            select_expr = self._parse_wrapped(self._parse_ddl_select)
+                        elif self._curr and self._curr.token_type in (TokenType.SELECT, TokenType.WITH):
+                            select_expr = self._parse_ddl_select()
+                        if select_expr is not None:
+                            insert_expression = self.expression(exp.Subquery, this=select_expr)
                     then = self.expression(
                         exp.Insert,
-                        this=exp.var("ROW")
-                        if self._match_text_seq("ROW")
-                        else self._parse_value(values=False),
-                        expression=self._match_text_seq("VALUES") and self._parse_value(),
+                        this=insert_columns,
+                        expression=insert_expression,
                     )
             # THEN UPDATE ...
             elif self._match(TokenType.UPDATE):

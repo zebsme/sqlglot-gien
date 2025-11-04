@@ -365,6 +365,9 @@ class TestPostgres(Validator):
             "MERGE INTO x USING (SELECT id) AS y ON a = b WHEN MATCHED THEN UPDATE SET a = y.b WHEN NOT MATCHED THEN INSERT (a, b) VALUES (y.a, y.b)",
         )
         self.validate_identity(
+            "MERGE INTO tgt USING src ON tgt.id = src.id WHEN NOT MATCHED THEN INSERT SELECT src.id"
+        )
+        self.validate_identity(
             "SELECT * FROM t1*",
             "SELECT * FROM t1",
         )
