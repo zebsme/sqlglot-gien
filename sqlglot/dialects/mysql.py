@@ -1751,6 +1751,24 @@ class MySQL(Dialect):
             Example: PARTITION p1 VALUES IN (1, 2, 3) ENGINE InnoDB COMMENT 'test'
             """
             name = self.sql(expression, "this")
+            has_options = any(
+                expression.args.get(opt)
+                for opt in (
+                    "engine",
+                    "comment",
+                    "data_directory",
+                    "index_directory",
+                    "max_rows",
+                    "min_rows",
+                    "tablespace",
+                    "subpartitions",
+                )
+            )
+
+            if not name and not has_options:
+                # No explicit partition name/options: delegate to the generic formatter
+                return super().partition_sql(expression)
+
             values = self.expressions(expression, "expressions")
             engine = self.sql(expression, "engine")
             comment = self.sql(expression, "comment")
