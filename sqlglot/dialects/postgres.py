@@ -380,6 +380,10 @@ class Postgres(Dialect):
         VAR_SINGLE_TOKENS = {"$"}
 
     class Parser(parser.Parser):
+        # MERGE WHEN INSERT feature flags for Postgres
+        MERGE_INSERT_DEFAULT_VALUES_SUPPORTED = True
+        MERGE_INSERT_OVERRIDING_SUPPORTED = True
+        MERGE_INSERT_WHERE_SUPPORTED = False
         SUPPORTS_OMITTED_INTERVAL_SPAN_UNIT = True
 
         PROPERTY_PARSERS = {

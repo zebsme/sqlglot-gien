@@ -31,13 +31,13 @@ TIME_ZONE_RE: t.Pattern[str] = re.compile(r":.*?[a-zA-Z\+\-]")
 def build_var_map(args: t.List) -> exp.StarMap | exp.VarMap:
     """
     构建变量映射表达式
-    
+
     根据参数列表构建星号映射或变量映射表达式。
     如果只有一个星号参数，返回StarMap；否则返回VarMap，包含键值对数组。
-    
+
     Args:
         args: 参数列表，可以是星号表达式或键值对
-        
+
     Returns:
         exp.StarMap | exp.VarMap: 星号映射或变量映射表达式
     """
@@ -56,12 +56,12 @@ def build_var_map(args: t.List) -> exp.StarMap | exp.VarMap:
 def build_like(args: t.List) -> exp.Escape | exp.Like:
     """
     构建LIKE表达式，支持可选的ESCAPE子句
-    
+
     创建LIKE比较表达式，如果提供了转义字符，则包装在ESCAPE表达式中。
-    
+
     Args:
         args: 参数列表，[表达式, 模式, 转义字符(可选)]
-        
+
     Returns:
         exp.Escape | exp.Like: 转义表达式或LIKE表达式
     """
@@ -74,14 +74,14 @@ def binary_range_parser(
 ) -> t.Callable[[Parser, t.Optional[exp.Expression]], t.Optional[exp.Expression]]:
     """
     创建二元范围解析器的工厂函数
-    
+
     返回一个解析器函数，用于解析二元范围表达式（如BETWEEN、IN等）。
     可以配置参数顺序是否反转。
-    
+
     Args:
         expr_type: 要创建的表达式类型
         reverse_args: 是否反转参数顺序
-        
+
     Returns:
         解析器函数，接受Parser实例和可选的表达式，返回解析后的表达式
     """
@@ -90,11 +90,11 @@ def binary_range_parser(
     ) -> t.Optional[exp.Expression]:
         """
         解析二元范围表达式的内部函数
-        
+
         Args:
             self: Parser实例
             this: 当前表达式
-            
+
         Returns:
             解析后的二元范围表达式
         """
@@ -109,13 +109,13 @@ def binary_range_parser(
 def build_logarithm(args: t.List, dialect: Dialect) -> exp.Func:
     """
     构建对数函数表达式
-    
+
     根据参数数量和数据库方言构建对数函数。支持不同方言的参数顺序。
-    
+
     Args:
         args: 参数列表
         dialect: 数据库方言对象
-        
+
     Returns:
         exp.Func: 对数函数表达式（Log或Ln）
     """
@@ -134,13 +134,13 @@ def build_logarithm(args: t.List, dialect: Dialect) -> exp.Func:
 def build_hex(args: t.List, dialect: Dialect) -> exp.Hex | exp.LowerHex:
     """
     构建十六进制函数表达式
-    
+
     根据数据库方言返回大写或小写的十六进制表达式。
-    
+
     Args:
         args: 参数列表
         dialect: 数据库方言对象
-        
+
     Returns:
         exp.Hex | exp.LowerHex: 十六进制或小写十六进制表达式
     """
@@ -151,12 +151,12 @@ def build_hex(args: t.List, dialect: Dialect) -> exp.Hex | exp.LowerHex:
 def build_lower(args: t.List) -> exp.Lower | exp.Hex:
     """
     构建LOWER函数表达式，支持LOWER(HEX(..))的简化
-    
+
     如果参数是HEX表达式，则简化为LowerHex以简化转译过程。
-    
+
     Args:
         args: 参数列表
-        
+
     Returns:
         exp.Lower | exp.Hex: LOWER表达式或十六进制表达式
     """
@@ -168,12 +168,12 @@ def build_lower(args: t.List) -> exp.Lower | exp.Hex:
 def build_upper(args: t.List) -> exp.Upper | exp.Hex:
     """
     构建UPPER函数表达式，支持UPPER(HEX(..))的简化
-    
+
     如果参数是HEX表达式，则简化为Hex以简化转译过程。
-    
+
     Args:
         args: 参数列表
-        
+
     Returns:
         exp.Upper | exp.Hex: UPPER表达式或十六进制表达式
     """
@@ -185,23 +185,23 @@ def build_upper(args: t.List) -> exp.Upper | exp.Hex:
 def build_extract_json_with_path(expr_type: t.Type[E]) -> t.Callable[[t.List, Dialect], E]:
     """
     创建JSON路径提取函数的构建器
-    
+
     返回一个构建器函数，用于创建JSON路径提取表达式。
-    
+
     Args:
         expr_type: 要创建的表达式类型
-        
+
     Returns:
         构建器函数，接受参数列表和方言，返回指定类型的表达式
     """
     def _builder(args: t.List, dialect: Dialect) -> E:
         """
         构建JSON路径提取表达式的内部函数
-        
+
         Args:
             args: 参数列表
             dialect: 数据库方言对象
-            
+
         Returns:
             指定类型的JSON路径提取表达式
         """
@@ -219,12 +219,12 @@ def build_extract_json_with_path(expr_type: t.Type[E]) -> t.Callable[[t.List, Di
 def build_mod(args: t.List) -> exp.Mod:
     """
     构建取模函数表达式
-    
+
     创建取模运算表达式，如果操作数是二元节点则用括号包装。
-    
+
     Args:
         args: 参数列表，包含被除数和除数
-        
+
     Returns:
         exp.Mod: 取模表达式
     """
@@ -241,13 +241,13 @@ def build_mod(args: t.List) -> exp.Mod:
 def build_pad(args: t.List, is_left: bool = True):
     """
     构建填充函数表达式（LPAD或RPAD）
-    
+
     创建左填充或右填充表达式，用于在字符串前后添加填充字符。
-    
+
     Args:
         args: 参数列表，[字符串, 长度, 填充模式]
         is_left: 是否为左填充（LPAD）
-        
+
     Returns:
         exp.Pad: 填充表达式
     """
@@ -264,15 +264,15 @@ def build_array_constructor(
 ) -> exp.Expression:
     """
     构建数组构造函数表达式
-    
+
     根据表达式类和数据库方言创建数组构造函数。
-    
+
     Args:
         exp_class: 表达式类
         args: 参数列表
         bracket_kind: 括号类型
         dialect: 数据库方言对象
-        
+
     Returns:
         exp.Expression: 数组构造函数表达式
     """
@@ -289,13 +289,13 @@ def build_convert_timezone(
 ) -> t.Union[exp.ConvertTimezone, exp.Anonymous]:
     """
     构建时区转换函数表达式
-    
+
     创建时区转换表达式，支持不同的参数组合。
-    
+
     Args:
         args: 参数列表
         default_source_tz: 默认源时区
-        
+
     Returns:
         exp.ConvertTimezone | exp.Anonymous: 时区转换表达式或匿名表达式
     """
@@ -311,13 +311,13 @@ def build_convert_timezone(
 def build_trim(args: t.List, is_left: bool = True):
     """
     构建TRIM函数表达式
-    
+
     创建字符串修剪表达式，支持前导或尾随字符的修剪。
-    
+
     Args:
         args: 参数列表，[字符串, 要修剪的字符]
         is_left: 是否为前导修剪
-        
+
     Returns:
         exp.Trim: TRIM表达式
     """
@@ -333,14 +333,14 @@ def build_coalesce(
 ) -> exp.Coalesce:
     """
     构建COALESCE函数表达式
-    
+
     创建COALESCE表达式，支持NVL和NULL函数的变体。
-    
+
     Args:
         args: 参数列表
         is_nvl: 是否为NVL函数
         is_null: 是否为NULL函数
-        
+
     Returns:
         exp.Coalesce: COALESCE表达式
     """
@@ -350,12 +350,12 @@ def build_coalesce(
 def build_locate_strposition(args: t.List):
     """
     构建字符串位置查找函数表达式
-    
+
     创建字符串位置查找表达式，用于查找子字符串在目标字符串中的位置。
-    
+
     Args:
         args: 参数列表，[子字符串, 目标字符串, 起始位置(可选)]
-        
+
     Returns:
         exp.StrPosition: 字符串位置表达式
     """
@@ -369,19 +369,19 @@ def build_locate_strposition(args: t.List):
 class _Parser(type):
     """
     Parser类的元类
-    
+
     在类创建时自动构建SHOW_TRIE和SET_TRIE字典，用于快速查找解析器。
     """
     def __new__(cls, clsname, bases, attrs):
         """
         创建Parser类时的钩子函数
-        
+
         Args:
             cls: 元类
             clsname: 类名
             bases: 基类
             attrs: 类属性
-            
+
         Returns:
             创建的类
         """
@@ -1780,6 +1780,14 @@ class Parser(metaclass=_Parser):
     # Whether JSON_EXTRACT requires a JSON expression as the first argument, e.g this
     # is true for Snowflake but not for BigQuery which can also process strings
     JSON_EXTRACT_REQUIRES_JSON_EXPRESSION = False
+
+    # MERGE WHEN INSERT capability flags (dialect-specific; default disabled)
+    # - MERGE_INSERT_DEFAULT_VALUES_SUPPORTED: supports "INSERT DEFAULT VALUES" form
+    # - MERGE_INSERT_OVERRIDING_SUPPORTED: supports "OVERRIDING {SYSTEM|USER} VALUE"
+    # - MERGE_INSERT_WHERE_SUPPORTED: supports a trailing WHERE clause inside INSERT
+    MERGE_INSERT_DEFAULT_VALUES_SUPPORTED = False
+    MERGE_INSERT_OVERRIDING_SUPPORTED = False
+    MERGE_INSERT_WHERE_SUPPORTED = False
     
     # 索引名称中是否允许出现.
     SUPPORT_INDEX_NAME_WITH_DOT = False
@@ -1974,15 +1982,15 @@ class Parser(metaclass=_Parser):
     ) -> E:
         """
         创建并验证一个新的表达式对象
-        
+
         这是Parser类的核心方法，用于创建各种SQL表达式节点。
         会自动添加注释并验证表达式的完整性。
-        
+
         Args:
             exp_class: 要实例化的表达式类
             comments: 可选的注释列表，将附加到表达式上
             kwargs: 表达式的参数及其对应的值
-            
+
         Returns:
             目标表达式实例
         """
@@ -1993,9 +2001,9 @@ class Parser(metaclass=_Parser):
     def _add_comments(self, expression: t.Optional[exp.Expression]) -> None:
         """
         将前一个注释添加到表达式中
-        
+
         用于将解析过程中收集的注释附加到当前表达式上。
-        
+
         Args:
             expression: 要添加注释的表达式
         """
@@ -2006,14 +2014,14 @@ class Parser(metaclass=_Parser):
     def validate_expression(self, expression: E, args: t.Optional[t.List] = None) -> E:
         """
         验证表达式的完整性
-        
+
         检查表达式的所有必需参数是否都已设置。
         如果错误级别不是IGNORE，则会检查并报告错误。
-        
+
         Args:
             expression: 要验证的表达式
             args: 可选的参数列表，如果表达式是Func类型则使用
-            
+
         Returns:
             验证后的表达式
         """
@@ -2026,11 +2034,11 @@ class Parser(metaclass=_Parser):
     def _find_sql(self, start: Token, end: Token) -> str:
         """
         从原始SQL字符串中提取指定范围的SQL文本
-        
+
         Args:
             start: 起始token
             end: 结束token
-            
+
         Returns:
             指定范围内的SQL文本
         """
@@ -2039,7 +2047,7 @@ class Parser(metaclass=_Parser):
     def _is_connected(self) -> bool:
         """
         检查前一个token和当前token是否在SQL中连续
-        
+
         Returns:
             如果token连续则返回True
         """
@@ -2048,10 +2056,10 @@ class Parser(metaclass=_Parser):
     def _advance(self, times: int = 1) -> None:
         """
         向前推进token指针
-        
+
         更新解析器的内部状态，包括当前token、下一个token和前一个token。
         同时处理注释的传递。
-        
+
         Args:
             times: 向前推进的步数
         """
@@ -2070,7 +2078,7 @@ class Parser(metaclass=_Parser):
     def _retreat(self, index: int) -> None:
         """
         回退到指定的token索引位置
-        
+
         Args:
             index: 目标索引位置
         """
@@ -2080,7 +2088,7 @@ class Parser(metaclass=_Parser):
     def _warn_unsupported(self) -> None:
         """
         警告用户遇到了不支持的SQL语法
-        
+
         当解析器遇到不支持的语法时，会记录警告信息。
         只对当前正在处理的SQL块发出警告。
         """
@@ -2097,9 +2105,9 @@ class Parser(metaclass=_Parser):
     def _parse_command(self) -> exp.Command:
         """
         解析不支持的SQL语法作为命令
-        
+
         当遇到不支持的语法时，将其解析为通用的Command表达式。
-        
+
         Returns:
             Command表达式对象
         """
@@ -2114,14 +2122,14 @@ class Parser(metaclass=_Parser):
     def _try_parse(self, parse_method: t.Callable[[], T], retreat: bool = False) -> t.Optional[T]:
         """
         尝试解析，如果失败则回退
-        
+
         这个方法解决了内部包含try/catch的解析函数在遇到错误时的回退问题。
         根据用户设置的ErrorLevel，行为可能不同，_try_parse通过设置和重置解析器状态来解决这个问题。
-        
+
         Args:
             parse_method: 要尝试的解析方法
             retreat: 是否在失败时回退
-            
+
         Returns:
             解析结果，如果失败则返回None
         """
@@ -2143,12 +2151,12 @@ class Parser(metaclass=_Parser):
     def _parse_comment(self, allow_exists: bool = True) -> exp.Expression:
         """
         解析COMMENT语句
-        
+
         支持对表、列、函数等对象添加注释的SQL语句。
-        
+
         Args:
             allow_exists: 是否允许IF EXISTS子句
-            
+
         Returns:
             Comment表达式对象
         """
@@ -2197,9 +2205,9 @@ class Parser(metaclass=_Parser):
     ) -> exp.ToTableProperty:
         """
         解析TO TABLE属性
-        
+
         用于解析指向特定表的属性。
-        
+
         Returns:
             ToTableProperty表达式对象
         """
@@ -2212,7 +2220,7 @@ class Parser(metaclass=_Parser):
         first_part = self._parse_table_part(schema=True)
         if not first_part:
             return self._parse_id_var()
-        
+
         # 检查是否有点号，表示有 schema
         if self._match(TokenType.DOT):
             # 解析第二个标识符部分（索引名）
@@ -2236,17 +2244,17 @@ class Parser(metaclass=_Parser):
     def _parse_ttl(self) -> exp.Expression:
         """
         解析TTL（Time To Live）表达式
-        
+
         支持ClickHouse的MergeTree表引擎的TTL功能。
         可以设置删除、重压缩、移动到磁盘/卷等操作。
-        
+
         Returns:
             MergeTreeTTL表达式对象
         """
         def _parse_ttl_action() -> t.Optional[exp.Expression]:
             """
             解析TTL动作的内部函数
-            
+
             支持多种TTL动作：DELETE、RECOMPRESS、TO DISK、TO VOLUME等
             """
             this = self._parse_bitwise()
@@ -2288,10 +2296,10 @@ class Parser(metaclass=_Parser):
     def _parse_statement(self) -> t.Optional[exp.Expression]:
         """
         解析SQL语句的主入口
-        
+
         根据当前token类型选择相应的解析器，支持标准SQL语句和命令。
         如果遇到不支持的语法，会回退到Command解析。
-        
+
         Returns:
             解析后的表达式对象，如果没有更多内容则返回None
         """
@@ -2317,13 +2325,13 @@ class Parser(metaclass=_Parser):
     def _parse_drop(self, exists: bool = False) -> exp.Drop | exp.Command:
         """
         解析DROP语句
-        
+
         支持删除表、列、索引、数据库等对象。
         包含各种方言特定的选项如CONCURRENTLY、CASCADE等。
-        
+
         Args:
             exists: 是否已经解析了IF EXISTS子句
-            
+
         Returns:
             Drop表达式或Command表达式
         """
@@ -2381,37 +2389,37 @@ class Parser(metaclass=_Parser):
     def _parse_exists(self, not_: bool = False) -> t.Optional[bool]:
         """
         解析IF EXISTS或IF NOT EXISTS子句
-        
+
         Args:
             not_: 是否期望NOT关键字
-            
+
         Returns:
             如果匹配成功则返回True，否则返回None
         """
         # 记录进入函数时的位置，用于失败时回退
         start_index = self._index
-        
+
         # 检查是否匹配"IF"文本序列
         if not self._match_text_seq("IF"):
             # 失败时回退到进入函数时的位置
             self._retreat(start_index)
             return False
-        
+
         # 如果not_为False，则不需要检查NOT标记
         # 如果not_为True，则需要检查是否存在NOT标记
         if not_ and not self._match(TokenType.NOT):
             # 失败时回退到进入函数时的位置
             self._retreat(start_index)
             return False
-        
+
         # 最后检查是否存在EXISTS标记
         if not self._match(TokenType.EXISTS):
             # 失败时回退到进入函数时的位置
             self._retreat(start_index)
             return False
-        
-        return True        
-        
+
+        return True
+
         # return (
         #     self._match_text_seq("IF")
         #     and (not not_ or self._match(TokenType.NOT))
@@ -2421,10 +2429,10 @@ class Parser(metaclass=_Parser):
     def _parse_create(self) -> exp.Create | exp.Command:
         """
         解析CREATE语句
-        
+
         这是最复杂的解析方法之一，支持创建表、视图、函数、索引、数据库等。
         包含多种方言特定的语法和选项。
-        
+
         Returns:
             Create表达式或Command表达式
         """
@@ -2480,7 +2488,7 @@ class Parser(metaclass=_Parser):
         concurrently = self._match_text_seq("CONCURRENTLY")
         # 解析IF NOT EXISTS子句，防止重复创建
         exists = self._parse_exists(not_=True)
-        
+
         # 初始化各种可能的CREATE语句组件
         this = None                    # 要创建的对象（表名、函数名等）
         expression: t.Optional[exp.Expression] = None  # 创建语句的主体表达式
@@ -2493,10 +2501,10 @@ class Parser(metaclass=_Parser):
         def extend_props(temp_props: t.Optional[exp.Properties]) -> None:
             """
             扩展属性的内部函数
-            
+
             将临时属性合并到主属性列表中。这是必要的，因为CREATE语句
             可以在多个位置包含属性，需要将它们合并到一个列表中。
-            
+
             Args:
                 temp_props: 要合并的临时属性
             """
@@ -2514,7 +2522,7 @@ class Parser(metaclass=_Parser):
                 # print(f"DEBUG: Set new properties")
 
         # ======= 根据创建的对象类型进行不同的解析分支 =======
-        
+
         if create_token.token_type in (TokenType.FUNCTION, TokenType.PROCEDURE):
             # === 分支1: 创建函数或存储过程 ===
             # 解析函数签名（名称、参数、返回类型等）
@@ -2576,7 +2584,7 @@ class Parser(metaclass=_Parser):
         elif create_token.token_type in self.DB_CREATABLES:
             # === 分支3: 创建数据库对象（表、视图、数据库、模式等） ===
             # DB_CREATABLES包括：DATABASE, SCHEMA, TABLE, VIEW等数据库级别的对象
-            
+
             # 解析对象名称（可能包含模式限定符）
             # 例如：schema.table_name 或者 database.schema.table_name
             table_parts = self._parse_table_parts(
@@ -2684,7 +2692,7 @@ class Parser(metaclass=_Parser):
                 )
 
         # ======= 最终验证和CREATE表达式构建 =======
-        
+
         # 检查是否还有未处理的token
         # 如果当前token不是右括号或逗号，说明有无法解析的语法，回退到命令模式
         if self._curr and not self._match_set((TokenType.R_PAREN, TokenType.COMMA), advance=False):
@@ -2692,7 +2700,7 @@ class Parser(metaclass=_Parser):
 
         # 获取创建对象类型的文本表示，并转换为大写
         create_kind_text = create_token.text.upper()
-        
+
         # 构建并返回完整的CREATE表达式
         # 包含所有解析到的组件和选项
         # print(f"DEBUG: Final properties before Create: {properties}")
@@ -2847,7 +2855,7 @@ class Parser(metaclass=_Parser):
             return self.expression(exp.TableReadWriteProperty, this="WRITE ONLY")
         if self._match_text_seq("READ", "WRITE"):
             return self.expression(exp.TableReadWriteProperty, this="READ WRITE")
-        
+
         index = self._index
 
         seq_props = self._parse_sequence_properties()
@@ -2930,7 +2938,7 @@ class Parser(metaclass=_Parser):
     def _parse_properties(self, before: t.Optional[bool] = None) -> t.Optional[exp.Properties]:
         """
         解析属性列表，并将其聚合为 `exp.Properties`。
-        
+
         关键逻辑：
         - `before=True` 时，走 Teradata 等方言的"前置属性"分支；否则走常规属性分支。
         - 单个解析结果可能返回一个或多个属性（如复合属性），因此统一用 `ensure_list` 展开。
@@ -2965,7 +2973,7 @@ class Parser(metaclass=_Parser):
     def _parse_security(self) -> t.Optional[exp.SecurityProperty]:
         """
         解析安全属性，如 `SQL SECURITY { DEFINER | INVOKER }` 或 `NONE`。
-        
+
         含义与原因：
         - 不同方言（如 MySQL、Oracle）允许为过程/函数/视图指定执行权限的主体。
         - 这里直接匹配受支持的枚举值，命中后用大写规范化，构造 `SecurityProperty`。
@@ -2988,7 +2996,7 @@ class Parser(metaclass=_Parser):
     def _parse_volatile_property(self) -> exp.VolatileProperty | exp.StabilityProperty:
         """
         解析 VOLATILE/稳定性相关属性（主要见于 Teradata）。
-        
+
         关键逻辑说明：
         - 通过回看前两个 token 来判断上下文是否允许 `VOLATILE` 作为属性出现
           （一些方言需要 `CREATE [VOLATILE] TABLE` 这样的上下文）。
@@ -3011,7 +3019,7 @@ class Parser(metaclass=_Parser):
         """
         解析 T-SQL 的 `HISTORY_RETENTION_PERIOD` 值：
         形如 `{INFINITE | <number> DAY | DAYS | MONTH ...}`。
-        
+
         关键逻辑：
         - 数值部分可选，缺省时表示 `INFINITE` 一类的文字；
         - 单位使用 `_parse_var(any_token=True)`，原因是单位允许是标识符枚举而非普通字符串。
@@ -3029,7 +3037,7 @@ class Parser(metaclass=_Parser):
         """
         解析 `SYSTEM_VERSIONING` 属性（T-SQL）：
         - 形如：`WITH (SYSTEM_VERSIONING = ON ( ... ))` 或 `WITH (SYSTEM_VERSIONING = OFF)`。
-        
+
         关键逻辑与原因：
         - 默认 `on=True`，若显式匹配到 `OFF`，则置为 False 并提前返回；
         - `ON` 分支内支持括号包裹的详细配置：
@@ -3071,7 +3079,7 @@ class Parser(metaclass=_Parser):
     def _parse_data_deletion_property(self) -> exp.DataDeletionProperty:
         """
         解析 `DATA DELETION`（删除/保留策略）属性。
-        
+
         关键逻辑：
         - 等号后先判断是 ON 还是 OFF，默认视为 ON（若未命中 OFF）。
         - 可选括号体内支持：
@@ -3098,7 +3106,7 @@ class Parser(metaclass=_Parser):
     def _parse_distributed_property(self) -> exp.DistributedByProperty:
         """
         解析分布属性（典型于数据仓库/MPP，如 `DISTRIBUTED BY HASH(...) BUCKETS n`）。
-        
+
         关键逻辑与原因：
         - 默认分布方式为 `HASH`，若匹配到 `BY RANDOM` 则切换为 `RANDOM`（随机分布）。
         - `BY HASH` 时解析括号内的分布键列表，使用 `_parse_wrapped_csv` 统一处理逗号表达式。
@@ -3128,7 +3136,7 @@ class Parser(metaclass=_Parser):
     def _parse_composite_key_property(self, expr_type: t.Type[E]) -> E:
         """
         解析复合键属性，例如 `PRIMARY KEY(col1, col2)` 或 `UNIQUE KEY(...)` 等。
-        
+
         关键逻辑：
         - 显式匹配关键字 `KEY` 以确保语义明确；
         - 使用 `_parse_wrapped_id_vars()` 解析括号中的标识符列表，
@@ -3147,7 +3155,7 @@ class Parser(metaclass=_Parser):
         3) `JOURNAL`、视图特性、`DATA/NO DATA`、`SERDE_PROPERTIES`；
         4) `SCHEMA` 绑定、`PROCEDURE OPTIONS`；
         5) 否则尝试解析 `WITH ISOLATED LOADING`（Teradata）。
-        
+
         说明：匹配顺序很重要，越具体/越有歧义的形态优先解析，避免被通用分支吞掉。
         """
         if self._match_text_seq("(", "SYSTEM_VERSIONING"):
@@ -3183,7 +3191,7 @@ class Parser(metaclass=_Parser):
                 exp.WithProcedureOptions, expressions=self._parse_csv(self._parse_procedure_option)
             )
 
-        
+
         withisolatedloading = self._parse_withisolatedloading()
         if withisolatedloading:
             return withisolatedloading
@@ -3219,7 +3227,7 @@ class Parser(metaclass=_Parser):
     def _parse_definer(self) -> t.Optional[exp.DefinerProperty]:
         """
         解析 MySQL `DEFINER = user@host` 语法（常用于 `CREATE VIEW` 等）。
-        
+
         关键逻辑：
         - `user` 与 `host` 之间由 `@` 连接；为兼容不同 tokenizer，这里用 `PARAMETER`（通常对应 `@`）进行匹配；
         - `host` 既可以是标识符，也允许 `*`（部分语法使用 `%` 等通配，源码中以 `MOD` 兼容读取上一 token 文本）。
@@ -3263,7 +3271,7 @@ class Parser(metaclass=_Parser):
     def _parse_checksum(self) -> exp.ChecksumProperty:
         """
         解析 `CHECKSUM = { ON | OFF | DEFAULT }`（SQL Server 等）。
-        
+
         关键逻辑：
         - 等号后尝试匹配 `ON` 或 `OFF`，否则保持 `None` 表示未显式设置；
         - `DEFAULT` 独立匹配，表示采用引擎默认的校验策略。
@@ -3297,7 +3305,7 @@ class Parser(metaclass=_Parser):
     def _parse_clustered_by(self) -> exp.ClusteredByProperty:
         """
         解析 `CLUSTERED BY (cols) [SORTED BY (...)] INTO <n> BUCKETS`（Hive/Trino 等）。
-        
+
         关键逻辑：
         - 先匹配 `BY` 后的列清单；
         - 可选 `SORTED BY` 指定桶内排序列；
@@ -3343,7 +3351,7 @@ class Parser(metaclass=_Parser):
     def _parse_freespace(self) -> exp.FreespaceProperty:
         """
         解析 `FREESPACE = <number> [%]` 属性（常见于 Teradata）。
-        
+
         关键逻辑：
         - 等号后读取数值；
         - 若紧跟百分号，则设置 `percent=True` 表示百分比单位，否则为绝对值；
@@ -3360,7 +3368,7 @@ class Parser(metaclass=_Parser):
     ) -> exp.MergeBlockRatioProperty:
         """
         解析 `MERGEBLOCKRATIO = <number> [%]` 或 `NO MERGEBLOCKRATIO`/`DEFAULT MERGEBLOCKRATIO`。
-        
+
         关键逻辑：
         - 命中等号分支时，解析数值和可选百分号；
         - 否则根据调用方传入的 `no/default` 标志构造语义（避免在此处重复判词）。
@@ -3383,7 +3391,7 @@ class Parser(metaclass=_Parser):
         """
         解析 `DATABLOCKSIZE = <size> [BYTES|KBYTES|KILOBYTES]` 以及可选的
         `DEFAULT | MINIMUM | MAXIMUM` 标志位（通过参数传入）。
-        
+
         关键逻辑：
         - 等号后读取数值；
         - 单位可选，命中后保留原始文本（`_prev.text`）以保证方言原样生成；
@@ -3408,7 +3416,7 @@ class Parser(metaclass=_Parser):
     def _parse_blockcompression(self) -> exp.BlockCompressionProperty:
         """
         解析块压缩策略：`BLOCKCOMPRESSION = { ALWAYS | MANUAL | NEVER | DEFAULT } [AUTOTEMP <schema>]`。
-        
+
         关键逻辑：
         - 等号后尝试匹配四种策略之一，分别用布尔位承载；
         - 可选 `AUTOTEMP` 后跟目标 schema，使用 `_parse_schema()` 解析成结构化节点；
@@ -3436,7 +3444,7 @@ class Parser(metaclass=_Parser):
     def _parse_withisolatedloading(self) -> t.Optional[exp.IsolatedLoadingProperty]:
         """
         解析 Teradata 的 `WITH [NO] [CONCURRENT] ISOLATED LOADING FOR ...` 属性。
-        
+
         关键逻辑：
         - 记录进入分支时的索引 `index`，若后续未成功匹配完整关键字串，则回退（避免吞掉前瞻 token）。
         - 可选前缀 `NO` 与 `CONCURRENT` 分别以布尔标记记录，便于生成端序列化。
@@ -3460,7 +3468,7 @@ class Parser(metaclass=_Parser):
     def _parse_locking(self) -> exp.LockingProperty:
         """
         解析锁语义（Teradata 等）：`LOCKING [DATABASE|TABLE|VIEW|ROW] <obj> FOR/IN <mode> [OVERRIDE]`。
-        
+
         关键逻辑：
         - 锁作用对象 `kind` 优先匹配固定关键字；DATABASE/TABLE/VIEW 需要跟具体对象名；ROW 级别不需要对象；
         - 介词 `FOR|IN` 不是所有方言都一致，保留原词以供生成；
@@ -3532,7 +3540,7 @@ class Parser(metaclass=_Parser):
         - `FROM (...) TO (...)`：RANGE 分区闭开区间；
         - `WITH (MODULUS m, REMAINDER r)`：哈希分区指定模与余数；
         - 特殊字面量 `MINVALUE | MAXVALUE` 被规范为 `exp.Var` 便于生成。
-        
+
         关键逻辑：不同形式互斥，按分支匹配，命中则采集对应字段，其它置空。
         未命中任一分支视为语法错误。
         """
@@ -3574,7 +3582,7 @@ class Parser(metaclass=_Parser):
     def _parse_partitioned_of(self) -> t.Optional[exp.PartitionedOfProperty]:
         """
         解析 PostgreSQL `PARTITION OF <parent> { DEFAULT | FOR VALUES ... }` 语法。
-        
+
         关键逻辑：
         - 未命中 `OF` 时直接回退一格并返回 None，交由其它分支解析；
         - 命中后必须跟父表名；
@@ -3598,7 +3606,7 @@ class Parser(metaclass=_Parser):
     def _parse_partitioned_by(self) -> exp.PartitionedByProperty:
         """
         解析方言中的 `PARTITIONED_BY = (...)` 或等价语法。
-        
+
         关键逻辑：
         - 等号后优先解析成 `schema`（如复杂对象/函数型表达式），否则解析成括号包裹字段列表；
         - 用 `PartitionedByProperty.this` 承载原始结构，由生成端做具体序列化。
@@ -6597,7 +6605,7 @@ class Parser(metaclass=_Parser):
         index = self._index
         # 尝试解析数据类型（禁用把标识符当作类型，以免与列名冲突）；允许函数类型（如 GEOGRAPHY())
         data_type = self._parse_types(check_func=True, allow_identifiers=False)
-        
+
         # parse_types() returns a Cast if we parsed BQ's inline constructor <type>(<values>) e.g.
         # STRUCT<a INT, b STRING>(1, 'foo'), which is canonicalized to CAST(<values> AS <type>)
         # 若解析到 BigQuery 的内联构造器（<type>(<values>）），已被规范化为 CAST(<values> AS <type>)
@@ -6979,7 +6987,7 @@ class Parser(metaclass=_Parser):
                 self._parse_type(parse_interval=False, fallback_to_identifier=True)
                 or self._parse_id_var()
             )
-            
+
         # 支持 name: type 形式
         self._match(TokenType.COLON)
 
@@ -9978,14 +9986,56 @@ class Parser(metaclass=_Parser):
                     # INSERT *：星号场景直接封装 Insert 节点
                     then: t.Optional[exp.Expression] = self.expression(exp.Insert, this=this)
                 else:
-                    # INSERT ROW 或 INSERT <values> [VALUES (...)] 两种形式
-                    then = self.expression(
-                        exp.Insert,
-                        this=exp.var("ROW")
-                        if self._match_text_seq("ROW")
-                        else self._parse_value(values=False),
-                        expression=self._match_text_seq("VALUES") and self._parse_value(),
-                    )
+                    # INSERT ROW 或 INSERT (<cols>) VALUES (...)
+                    insert_columns: t.Optional[exp.Expression] = None
+                    if self._match_text_seq("ROW"):
+                        insert_columns = exp.var("ROW")
+                    elif self._curr and self._curr.token_type == TokenType.L_PAREN:
+                        # Only treat leading parenthesis as column tuple; avoid
+                        # consuming VALUES/SELECT as part of the column list.
+                        insert_columns = self._parse_value(values=False)
+                    overriding: t.Optional[str] = None
+                    if self.MERGE_INSERT_OVERRIDING_SUPPORTED and self._match_text_seq("OVERRIDING"):
+                        if self._match_texts(("SYSTEM", "USER")):
+                            overriding = self._prev.text.upper()
+                            self._match_text_seq("VALUE")
+                        else:
+                            # If OVERRIDING is present but malformed, treat as unsupported by falling through
+                            overriding = None
+
+                    # DEFAULT VALUES
+                    if self.MERGE_INSERT_DEFAULT_VALUES_SUPPORTED and self._match_text_seq("DEFAULT", "VALUES"):
+                        then = self.expression(
+                            exp.Insert,
+                            this=insert_columns,
+                            default=True,
+                            **({"overriding": exp.var(overriding)} if overriding else {}),
+                        )
+                    else:
+                        insert_expression: t.Optional[exp.Expression] = None
+                        if self._match_text_seq("VALUES"):
+                            insert_expression = self._parse_value()
+                        else:
+                            # Allow dialects that support SELECT/CTE sources to be parsed as a Subquery.
+                            select_expr: t.Optional[exp.Expression] = None
+                            if self._curr and self._curr.token_type == TokenType.L_PAREN:
+                                select_expr = self._parse_wrapped(self._parse_ddl_select)
+                            elif self._curr and self._curr.token_type in (TokenType.SELECT, TokenType.WITH):
+                                select_expr = self._parse_ddl_select()
+                            if select_expr is not None:
+                                insert_expression = self.expression(exp.Subquery, this=select_expr)
+
+                        then = self.expression(
+                            exp.Insert,
+                            this=insert_columns,
+                            expression=insert_expression,
+                            **({"overriding": exp.var(overriding)} if overriding else {}),
+                        )
+
+                    if self.MERGE_INSERT_WHERE_SUPPORTED and isinstance(then, exp.Insert):
+                        where = self._parse_where()
+                        if where is not None:
+                            then.set("where", where)
             # THEN UPDATE ...
             elif self._match(TokenType.UPDATE):
                 expressions = self._parse_star()
@@ -11074,8 +11124,8 @@ class Parser(metaclass=_Parser):
             kwargs["requires_string"] = self.dialect.TRY_CAST_REQUIRES_STRING
 
         return self.expression(exp_class, **kwargs)
-    
-    
+
+
     def _parse_tablespace_property(self) -> exp.TablespaceProperty:
         """解析TABLESPACE属性"""
         # 解析表空间名称
