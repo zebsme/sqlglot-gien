@@ -4075,16 +4075,30 @@ class Generator(metaclass=_Generator):
         if isinstance(then_expression, exp.Insert):
             columns = self.sql(then_expression, "this")
             insert_head = f"INSERT {columns}" if columns else "INSERT"
-            expr = then_expression.expression
-            if expr:
-                if isinstance(expr, exp.Subquery):
-                    select_sql = self.sql(expr, "this") or self.sql(expr)
-                    then = f"{insert_head} {select_sql}"
-                else:
-                    values_sql = self.sql(then_expression, "expression")
-                    then = f"{insert_head} VALUES {values_sql}"
+
+            overriding_sql = self.sql(then_expression, "overriding")
+            overriding_clause = f" OVERRIDING {overriding_sql} VALUE" if overriding_sql else ""
+
+            where_expression = then_expression.args.get("where")
+            if isinstance(where_expression, exp.Where):
+                where_condition = self.sql(where_expression, "this")
             else:
-                then = insert_head
+                where_condition = self.sql(where_expression) if where_expression else ""
+            where_clause = f" WHERE {where_condition}" if where_condition else ""
+
+            if then_expression.args.get("default"):
+                then = f"{insert_head}{overriding_clause} DEFAULT VALUES{where_clause}"
+            else:
+                expr = then_expression.expression
+                if expr:
+                    if isinstance(expr, exp.Subquery):
+                        select_sql = self.sql(expr, "this") or self.sql(expr)
+                        then = f"{insert_head}{overriding_clause} {select_sql}{where_clause}"
+                    else:
+                        values_sql = self.sql(then_expression, "expression")
+                        then = f"{insert_head}{overriding_clause} VALUES {values_sql}{where_clause}"
+                else:
+                    then = f"{insert_head}{overriding_clause}{where_clause}"
         elif isinstance(then_expression, exp.Update):
             if isinstance(then_expression.args.get("expressions"), exp.Star):
                 then = f"UPDATE {self.sql(then_expression, 'expressions')}"

@@ -368,6 +368,12 @@ class TestPostgres(Validator):
             "MERGE INTO tgt USING src ON tgt.id = src.id WHEN NOT MATCHED THEN INSERT SELECT src.id"
         )
         self.validate_identity(
+            "MERGE INTO tgt USING src ON tgt.id = src.id WHEN NOT MATCHED THEN INSERT DEFAULT VALUES"
+        )
+        self.validate_identity(
+            "MERGE INTO tgt USING src ON tgt.id = src.id WHEN NOT MATCHED THEN INSERT (id) OVERRIDING SYSTEM VALUE VALUES (src.id)"
+        )
+        self.validate_identity(
             "SELECT * FROM t1*",
             "SELECT * FROM t1",
         )

@@ -139,6 +139,23 @@ class TestGaussDB(Validator):
         self.assertEqual("ALTER TABLE fq.fq_mkt_dept_cust_detail_a OWNER TO sjck", expr.sql())
 
 
+    def test_merge_insert_where(self):
+        sql = "MERGE INTO tgt USING src ON tgt.id = src.id WHEN NOT MATCHED THEN INSERT (id) VALUES (src.id) WHERE src.flag = 1"
+        expr = self.validate_identity(sql)
+        merge = expr.assert_is(exp.Merge)
+        when = merge.args["whens"].expressions[0].assert_is(exp.When)
+        insert = when.args["then"].assert_is(exp.Insert)
+        self.assertEqual(insert.args["where"].assert_is(exp.Where).this.sql(), "src.flag = 1")
+        self.assertEqual(sql, expr.sql(dialect=self.dialect))
+
+    def test_merge_insert_default_values(self):
+        sql = "MERGE INTO tgt USING src ON tgt.id = src.id WHEN NOT MATCHED THEN INSERT DEFAULT VALUES"
+        expr = self.validate_identity(sql)
+        merge = expr.assert_is(exp.Merge)
+        insert = merge.args["whens"].expressions[0].args["then"].assert_is(exp.Insert)
+        self.assertTrue(insert.args.get("default"))
+        self.assertEqual(sql, expr.sql(dialect=self.dialect))
+
     def test_create_foreign_table_with_options(self):
         sql = dedent(
             """

@@ -1781,6 +1781,14 @@ class Parser(metaclass=_Parser):
     # is true for Snowflake but not for BigQuery which can also process strings
     JSON_EXTRACT_REQUIRES_JSON_EXPRESSION = False
 
+    # MERGE WHEN INSERT capability flags (dialect-specific; default disabled)
+    # - MERGE_INSERT_DEFAULT_VALUES_SUPPORTED: supports "INSERT DEFAULT VALUES" form
+    # - MERGE_INSERT_OVERRIDING_SUPPORTED: supports "OVERRIDING {SYSTEM|USER} VALUE"
+    # - MERGE_INSERT_WHERE_SUPPORTED: supports a trailing WHERE clause inside INSERT
+    MERGE_INSERT_DEFAULT_VALUES_SUPPORTED = False
+    MERGE_INSERT_OVERRIDING_SUPPORTED = False
+    MERGE_INSERT_WHERE_SUPPORTED = False
+    
     # 索引名称中是否允许出现.
     SUPPORT_INDEX_NAME_WITH_DOT = False
 
@@ -9976,14 +9984,56 @@ class Parser(metaclass=_Parser):
                     # INSERT *：星号场景直接封装 Insert 节点
                     then: t.Optional[exp.Expression] = self.expression(exp.Insert, this=this)
                 else:
-                    # INSERT ROW 或 INSERT <values> [VALUES (...)] 两种形式
-                    then = self.expression(
-                        exp.Insert,
-                        this=exp.var("ROW")
-                        if self._match_text_seq("ROW")
-                        else self._parse_value(values=False),
-                        expression=self._match_text_seq("VALUES") and self._parse_value(),
-                    )
+                    # INSERT ROW 或 INSERT (<cols>) VALUES (...)
+                    insert_columns: t.Optional[exp.Expression] = None
+                    if self._match_text_seq("ROW"):
+                        insert_columns = exp.var("ROW")
+                    elif self._curr and self._curr.token_type == TokenType.L_PAREN:
+                        # Only treat leading parenthesis as column tuple; avoid
+                        # consuming VALUES/SELECT as part of the column list.
+                        insert_columns = self._parse_value(values=False)
+                    overriding: t.Optional[str] = None
+                    if self.MERGE_INSERT_OVERRIDING_SUPPORTED and self._match_text_seq("OVERRIDING"):
+                        if self._match_texts(("SYSTEM", "USER")):
+                            overriding = self._prev.text.upper()
+                            self._match_text_seq("VALUE")
+                        else:
+                            # If OVERRIDING is present but malformed, treat as unsupported by falling through
+                            overriding = None
+
+                    # DEFAULT VALUES
+                    if self.MERGE_INSERT_DEFAULT_VALUES_SUPPORTED and self._match_text_seq("DEFAULT", "VALUES"):
+                        then = self.expression(
+                            exp.Insert,
+                            this=insert_columns,
+                            default=True,
+                            **({"overriding": exp.var(overriding)} if overriding else {}),
+                        )
+                    else:
+                        insert_expression: t.Optional[exp.Expression] = None
+                        if self._match_text_seq("VALUES"):
+                            insert_expression = self._parse_value()
+                        else:
+                            # Allow dialects that support SELECT/CTE sources to be parsed as a Subquery.
+                            select_expr: t.Optional[exp.Expression] = None
+                            if self._curr and self._curr.token_type == TokenType.L_PAREN:
+                                select_expr = self._parse_wrapped(self._parse_ddl_select)
+                            elif self._curr and self._curr.token_type in (TokenType.SELECT, TokenType.WITH):
+                                select_expr = self._parse_ddl_select()
+                            if select_expr is not None:
+                                insert_expression = self.expression(exp.Subquery, this=select_expr)
+
+                        then = self.expression(
+                            exp.Insert,
+                            this=insert_columns,
+                            expression=insert_expression,
+                            **({"overriding": exp.var(overriding)} if overriding else {}),
+                        )
+
+                    if self.MERGE_INSERT_WHERE_SUPPORTED and isinstance(then, exp.Insert):
+                        where = self._parse_where()
+                        if where is not None:
+                            then.set("where", where)
             # THEN UPDATE ...
             elif self._match(TokenType.UPDATE):
                 expressions = self._parse_star()

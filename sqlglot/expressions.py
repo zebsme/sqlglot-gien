@@ -4501,6 +4501,7 @@ class Insert(DDL, DML):
         "settings": False,    # 插入设置
         "source": False,      # 数据源表达式
         "default": False,
+        "overriding": False,
     }
 
     def with_(

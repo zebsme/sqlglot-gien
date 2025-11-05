@@ -29,6 +29,10 @@ class GaussDB(Postgres):  # 继承自 PostgreSQL 方言
         }
 
     class Parser(Postgres.Parser):
+        # MERGE WHEN INSERT feature flags for GaussDB
+        MERGE_INSERT_DEFAULT_VALUES_SUPPORTED = True
+        MERGE_INSERT_WHERE_SUPPORTED = True
+        MERGE_INSERT_OVERRIDING_SUPPORTED = False
 
         PROPERTY_PARSERS = {
             **Postgres.Parser.PROPERTY_PARSERS,
@@ -658,33 +662,3 @@ class GaussDB(Postgres):  # 继承自 PostgreSQL 方言
                 return f"{partition_keyword} FOR ({values})"
 
             return super().partition_sql(expression)
-
-        def when_sql(self, expression: exp.When) -> str:
-            matched = "MATCHED" if expression.args["matched"] else "NOT MATCHED"
-            source = " BY SOURCE" if self.MATCHED_BY_SOURCE and expression.args.get("source") else ""
-            condition = self.sql(expression, "condition")
-            condition = f" AND {condition}" if condition else ""
-
-            then_expression = expression.args.get("then")
-            if isinstance(then_expression, exp.Insert):
-                columns = self.sql(then_expression, "this")
-                insert_head = f"INSERT {columns}" if columns else "INSERT"
-                expr = then_expression.expression
-                if expr:
-                    if isinstance(expr, exp.Subquery):
-                        select_sql = self.sql(expr, "this") or self.sql(expr)
-                        then = f"{insert_head} {select_sql}"
-                    else:
-                        value_sql = self.sql(then_expression, "expression")
-                        then = f"{insert_head} VALUES {value_sql}"
-                else:
-                    then = insert_head
-            elif isinstance(then_expression, exp.Update):
-                if isinstance(then_expression.args.get("expressions"), exp.Star):
-                    then = f"UPDATE {self.sql(then_expression, 'expressions')}"
-                else:
-                    then = f"UPDATE SET{self.sep()}{self.expressions(then_expression)}"
-            else:
-                then = self.sql(then_expression)
-
-            return f"WHEN {matched}{source}{condition} THEN {then}"
