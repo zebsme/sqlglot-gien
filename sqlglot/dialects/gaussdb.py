@@ -29,21 +29,29 @@ class GaussDB(Postgres):  # 继承自 PostgreSQL 方言
         }
 
     class Parser(Postgres.Parser):
+        # MERGE WHEN INSERT feature flags for GaussDB
+        MERGE_INSERT_DEFAULT_VALUES_SUPPORTED = True
+        MERGE_INSERT_WHERE_SUPPORTED = True
+        MERGE_INSERT_OVERRIDING_SUPPORTED = False
 
         PROPERTY_PARSERS = {
-            # "LOG INTO": lambda self: self.expression(exp.Property, this="LOG INTO", value=self._parse_id_var(any_token=True)),
             **Postgres.Parser.PROPERTY_PARSERS,
             "DISTRIBUTE BY": lambda self: self._parse_distributed_property(),
-            "LOCAL": lambda self: (self._match_text_seq("TEMPORARY") or self._match_text_seq("TEMP"))
+            "LOCAL": lambda self: (
+                self._match_text_seq("TEMPORARY") or self._match_text_seq("TEMP")
+            )
             and self.expression(exp.TemporaryProperty, this="LOCAL"),
-            "PARTITION BY": lambda self: self._parse_partition_by_opt_range(), #_parse_partitioned_by_with_list
+            "PARTITION BY": lambda self: self._parse_partition_by_opt_range(),
             "PARTITIONED BY": lambda self: self._parse_partitioned_by(),
             "PARTITIONED_BY": lambda self: self._parse_partitioned_by(),
             "FOREIGN": lambda self: self.expression(exp.ExternalProperty),
             "SERVER": lambda self: self._parse_server_property(),
-            "OPTIONS": lambda self: self._parse_option_properties(),
-            "LOG INTO": lambda self: self.expression(exp.WithJournalTableProperty, this=self._parse_table_parts()),
-            "PER NODE REJECT LIMIT":lambda self: self.parse_kv_property(key="PER NODE REJECT LIMIT", quoted=True),
+            "OPTIONS": lambda self: self._parse_options_property(),
+            "LOG INTO": lambda self: self.expression(
+                exp.WithJournalTableProperty, this=self._parse_table_parts()
+            ),
+            "PER NODE REJECT LIMIT": lambda self: self._parse_per_node_reject_limit_property(),
+            "ENABLE": lambda self: self._parse_enable_row_movement_property(),
             "TO": lambda self: self._parse_to_group_or_node(),
         }
         
@@ -100,6 +108,7 @@ class GaussDB(Postgres):  # 继承自 PostgreSQL 方言
             **Postgres.Parser.ALTER_PARSERS,
             "ADD": lambda self: self._parse_alter_table_add(),
             "TO": lambda self: self._parse_alter_table_to(),  # 新增TO解析器
+            "OWNER": lambda self: self._parse_alter_owner(),
         }
         
         FUNCTIONS = {
@@ -119,11 +128,33 @@ class GaussDB(Postgres):  # 继承自 PostgreSQL 方言
                 value = self.OPTION_VALUE_PARSERS[self._prev.token_type](self, self._prev)
                 return self.expression(exp.Property, this=key, value=value)
             return self._parse_placeholder()
+
+        def _parse_per_node_reject_limit_property(self) -> t.Optional[exp.Expression]:
+            """解析 PER NODE REJECT LIMIT 属性。"""
+            index = self._index
+            value = self._parse_var_or_string() or self._parse_number()
+            if value:
+                has_rows = self._match_text_seq("ROWS")
+                return self.expression(
+                    exp.PerNodeRejectLimitProperty,
+                    this=value,
+                    rows=has_rows,
+                )
+            self._retreat(index)
+            return self._parse_placeholder()
+
+        def _parse_enable_row_movement_property(self) -> t.Optional[exp.Expression]:
+            """解析 ENABLE ROW MOVEMENT 属性。"""
+            index = self._index
+            if self._match_text_seq("ROW", "MOVEMENT"):
+                return self.expression(exp.EnableRowMovementProperty)
+            self._retreat(index)
+            return self._parse_placeholder()
         
 
-        def _parse_option_properties(self) -> t.List[exp.Expression]:
-            """解析OPTIONS形如 `(KEY1 "VALUE1", KEY2 "VALUE2", ...)` 的 *括号包裹* 属性列表。"""
-            return self._parse_wrapped_csv(self._parse_option_property)
+        def _parse_options_property(self) -> t.List[exp.Expression]:
+            """解析 OPTIONS (...) 子句，直接返回属性列表以复用现有属性节点。"""
+            return [opt for opt in self._parse_wrapped_csv(self._parse_option_property) if opt]
         
         def _parse_option_property(self) -> t.Optional[exp.Expression]:
             """
@@ -132,6 +163,7 @@ class GaussDB(Postgres):  # 继承自 PostgreSQL 方言
             """
             if self._match_texts(self.OPTION_PARSERS):
                 return self.OPTION_PARSERS[self._prev.text.upper()](self)
+            return self._parse_placeholder()
         
         def _parse_alter_table_add(self) -> t.List[exp.Expression]:
             """
@@ -163,7 +195,8 @@ class GaussDB(Postgres):  # 继承自 PostgreSQL 方言
                             exp.AddGaussDBPartition,
                             this=partition_name,
                             expressions=values,
-                            exists=exists
+                            exists=exists,
+                            values=exp.var("VALUES"),
                         )
                     
                     # 解析 FOR VALUES IN 子句
@@ -176,7 +209,8 @@ class GaussDB(Postgres):  # 继承自 PostgreSQL 方言
                             exp.AddGaussDBPartition,
                             this=partition_name,
                             expressions=values,
-                            exists=exists
+                            exists=exists,
+                            values=exp.var("FOR_VALUES_IN"),
                         )
                     
                     # 解析 FOR VALUES FROM ... TO 子句
@@ -191,10 +225,12 @@ class GaussDB(Postgres):  # 继承自 PostgreSQL 方言
                             self._match(TokenType.R_PAREN)
                             
                             return self.expression(
-                                exp.AddPartition,
+                                exp.AddGaussDBPartition,
                                 this=partition_name,
-                                expressions=from_values + to_values,  # 合并范围值
-                                exists=exists
+                                exists=exists,
+                                values=exp.var("FOR_VALUES_RANGE"),
+                                range_from=self.expression(exp.Tuple, expressions=from_values),
+                                range_to=self.expression(exp.Tuple, expressions=to_values),
                             )
 
                 # Hive/Athena 风格：ADD [IF NOT EXISTS] PARTITION (...) [LOCATION '...']
@@ -297,7 +333,7 @@ class GaussDB(Postgres):  # 继承自 PostgreSQL 方言
         def _parse_to_group_or_node(self) -> t.Optional[exp.Expression]:
             """
             Parse TO GROUP groupname or TO NODE (nodename [, ...]) syntax.
-            
+
             Supports:
             - TO GROUP groupname 
             - TO NODE (nodename1, nodename2, ...)
@@ -318,8 +354,7 @@ class GaussDB(Postgres):  # 继承自 PostgreSQL 方言
                     node_name = self._parse_id_var()
                     if node_name:
                         return self.expression(exp.ToNodeProperty, expressions=[node_name])
-            
-            return None                   
+
 
         def _parse_alter_table_to(self) -> t.Optional[exp.Expression]:
             """
@@ -354,6 +389,13 @@ class GaussDB(Postgres):  # 继承自 PostgreSQL 方言
             # 未匹配到GROUP或NODE关键字
             self.raise_error("Expected GROUP or NODE after TO in ALTER TABLE statement")
             return None
+
+        def _parse_alter_owner(self) -> exp.AlterOwner:
+            """解析 ALTER ... OWNER TO 语法。"""
+            if not self._match_text_seq("TO"):
+                self.raise_error("Expected TO after OWNER")
+            owner = self._parse_id_var(any_token=True)
+            return self.expression(exp.AlterOwner, expression=owner)
         
         # 参考doris逻辑解析PARTITION BY RANGE/LIST的逻辑
         def _parse_partitioning_granularity_dynamic(self) -> exp.PartitionByRangePropertyDynamic:
@@ -370,7 +412,16 @@ class GaussDB(Postgres):  # 继承自 PostgreSQL 方言
         def _parse_partition_definition(self) -> exp.Partition:
             self._match_text_seq("PARTITION")
 
+            if self._match_text_seq("FOR"):
+                values = self._parse_wrapped_csv(self._parse_expression)
+                return self.expression(exp.Partition, expressions=values)
+
             name = self._parse_id_var()
+
+            if self._match_text_seq("FOR"):
+                values = self._parse_wrapped_csv(self._parse_expression)
+                return self.expression(exp.Partition, expressions=values)
+
             self._match_text_seq("VALUES")
 
             if self._match_text_seq("LESS", "THAN"):
@@ -395,6 +446,7 @@ class GaussDB(Postgres):  # 继承自 PostgreSQL 方言
             self._match_text_seq("PARTITION")
             name = self._parse_id_var()
             self._match_text_seq("VALUES")
+            self._match_text_seq("IN")
             values = self._parse_wrapped_csv(self._parse_expression)
             part_list = self.expression(exp.PartitionList, this=name, expressions=values)
             return self.expression(exp.Partition, expressions=[part_list])
@@ -430,7 +482,22 @@ class GaussDB(Postgres):  # 继承自 PostgreSQL 方言
                 exp.PartitionByRangeProperty,
                 partition_expressions=partition_expressions,
                 create_expressions=create_expressions,
-            )        
+            )
+
+        def _parse_alter(self) -> exp.Alter | exp.Command:
+            alter = super()._parse_alter()
+            if isinstance(alter, exp.Alter):
+                actions = alter.args.get("actions") or []
+                if actions and not alter.args.get("expressions"):
+                    alter.set("expressions", actions)
+
+                table = alter.args.get("this")
+                if table:
+                    table_copy = table.copy()
+                    for action in actions:
+                        if isinstance(action, exp.AlterOwner) and not action.args.get("this"):
+                            action.set("this", table_copy.copy())
+            return alter
 
                 
     class Generator(Postgres.Generator):
@@ -445,11 +512,41 @@ class GaussDB(Postgres):  # 继承自 PostgreSQL 方言
             exp.DataType.Type.FLOAT: "FLOAT4",  # FLOAT → FLOAT4
         }
 
+        PROPERTIES_LOCATION = {
+            **Postgres.Generator.PROPERTIES_LOCATION,
+            exp.TablespaceProperty: exp.Properties.Location.POST_NAME,
+            exp.ServerProperty: exp.Properties.Location.POST_SCHEMA,
+            exp.TableReadWriteProperty: exp.Properties.Location.POST_SCHEMA,
+            exp.WithJournalTableProperty: exp.Properties.Location.POST_SCHEMA,
+            exp.EnableRowMovementProperty: exp.Properties.Location.POST_SCHEMA,
+            exp.PerNodeRejectLimitProperty: exp.Properties.Location.POST_SCHEMA,
+        }
+
         TRANSFORMS = {
             **Postgres.Generator.TRANSFORMS,
+            exp.ExternalProperty: lambda *_: "FOREIGN",
             exp.AlterToGroup: lambda self, e: self.altertogroup_sql(e),
             exp.AlterToNode: lambda self, e: self.altertonode_sql(e),
+            exp.WithJournalTableProperty: lambda self, e: self.withjournaltableproperty_sql(e),
+            exp.AddGaussDBPartition: lambda self, e: self.addgaussdbpartition_sql(e),
+            exp.AlterOwner: lambda self, e: self.alterowner_sql(e),
         }
+
+        def createable_sql(
+            self, expression: exp.Create, locations: t.DefaultDict
+        ) -> str:
+            post_name = locations.pop(exp.Properties.Location.POST_NAME, None)
+            this_sql = super().createable_sql(expression, locations)
+
+            if post_name:
+                props_sql = self.properties(
+                    exp.Properties(expressions=post_name),
+                    wrapped=False,
+                    prefix=" ",
+                )
+                return f"{this_sql}{props_sql}"
+
+            return this_sql
 
         def datatype_sql(self, expression: exp.DataType) -> str:
             if expression.is_type(exp.DataType.Type.ARRAY):
@@ -468,42 +565,100 @@ class GaussDB(Postgres):  # 继承自 PostgreSQL 方言
             return super().datatype_sql(expression)
 
 
-        def partitionlistproperty_sql(self, expression: exp.PartitionListProperty) -> str:
-            """生成分区列表的SQL"""
-            partition_by = self.sql(expression, "this")
-            partition_list = self.expressions(expression, key="partition_list", flat=True)
-            return f"PARTITION BY {partition_by} ({partition_list})"
+        def addgaussdbpartition_sql(self, expression: exp.AddGaussDBPartition) -> str:
+            exists = " IF NOT EXISTS" if expression.args.get("exists") else ""
+            name = self.sql(expression, "this")
+            variant = expression.args.get("values")
+            variant_name = variant.name if isinstance(variant, exp.Var) else None
+
+            if variant_name == "FOR_VALUES_IN":
+                values = self.expressions(expression, flat=True)
+                values_sql = f" ({values})" if values else ""
+                return f"ADD{exists} PARTITION {name} FOR VALUES IN{values_sql}"
+            if variant_name == "FOR_VALUES_RANGE":
+                from_sql = self.sql(expression, "range_from")
+                to_sql = self.sql(expression, "range_to")
+                to_clause = f" TO {to_sql}" if to_sql else ""
+                return f"ADD{exists} PARTITION {name} FOR VALUES FROM {from_sql}{to_clause}"
+
+            values = self.expressions(expression, flat=True)
+            values_sql = f" ({values})" if values else ""
+            if isinstance(variant, exp.Var):
+                keyword = "VALUES" if variant.name == "VALUES" else "VALUES"
+            else:
+                keyword = "VALUES"
+            return f"ADD{exists} PARTITION {name} {keyword}{values_sql}"
+
+        def partitionrange_sql(self, expression: exp.PartitionRange) -> str:
+            name = self.sql(expression, "this")
+            name_sql = f"{name} " if name else ""
+            if expression.expressions:
+                values = self.expressions(expression, flat=True)
+                return f"{name_sql}VALUES LESS THAN ({values})"
+            high = self.sql(expression, "expression")
+            if high:
+                return f"{name_sql}TO {high}"
+            return name_sql.strip()
+
+        def partitionbylistproperty_sql(self, expression: exp.PartitionByListProperty) -> str:
+            partition_expressions = self.expressions(expression, "partition_expressions")
+            create_expressions = self.expressions(expression, "create_expressions")
+            return f"PARTITION BY LIST {self.wrap(partition_expressions)} {self.wrap(create_expressions)}"
 
         def altertogroup_sql(self, expression: exp.AlterToGroup) -> str:
-            """生成ALTER TABLE TO GROUP的SQL"""
             return f"TO GROUP {self.sql(expression, 'this')}"
 
         def altertonode_sql(self, expression: exp.AlterToNode) -> str:
-            """生成ALTER TABLE TO NODE的SQL"""
             nodes = self.expressions(expression, flat=True)
             if len(expression.expressions) > 1:
                 return f"TO NODE ({nodes})"
-            else:
-                return f"TO NODE {nodes}"
+            return f"TO NODE {nodes}"
+
+        def alterowner_sql(self, expression: exp.AlterOwner) -> str:
+            owner = self.sql(expression, "expression")
+            return f"OWNER TO {owner}"
+
+        def tablereadwriteproperty_sql(self, expression: exp.TableReadWriteProperty) -> str:
+            return self.sql(expression, "this")
+
+        def serverproperty_sql(self, expression: exp.ServerProperty) -> str:
+            value = self.sql(expression, "this")
+            return f"SERVER {value}"
+
+        def withjournaltableproperty_sql(self, expression: exp.WithJournalTableProperty) -> str:
+            table = self.sql(expression, "this")
+            return f"LOG INTO {table}"
+
+        def enablerowmovementproperty_sql(self, expression: exp.EnableRowMovementProperty) -> str:
+            return "ENABLE ROW MOVEMENT"
+
+        def pernoderejectlimitproperty_sql(self, expression: exp.PerNodeRejectLimitProperty) -> str:
+            value = self.sql(expression, "this")
+            suffix = " ROWS" if expression.args.get("rows") else ""
+            return f"PER NODE REJECT LIMIT {value}{suffix}"
+
+        def partitionlist_sql(self, expression: exp.PartitionList) -> str:
+            name = self.sql(expression, "this")
+            values = self.expressions(expression, "expressions")
+            return f"PARTITION {name} VALUES IN {self.wrap(values)}"
 
         def partition_sql(self, expression: exp.Partition) -> str:
-            """
-            生成 PARTITION 的SQL，支持 GaussDB 的 PARTITION FOR 语法。
-            
-            判断逻辑：
-            - 如果表达式都是简单的值（不是赋值表达式），则生成 PARTITION FOR 语法
-            - 否则生成标准的 PARTITION 语法
-            """
             partition_keyword = "SUBPARTITION" if expression.args.get("subpartition") else "PARTITION"
             expressions = expression.expressions or []
-            
-            # 检查是否所有表达式都是简单值（非赋值表达式）
-            # 这表示是 PARTITION FOR 语法
-            if expressions and all(not isinstance(expr, exp.EQ) for expr in expressions):
-                # 生成 PARTITION FOR 语法
+
+            if len(expressions) == 1:
+                child = expressions[0]
+                if isinstance(child, exp.Column) and not child.args.get("table"):
+                    return f"{partition_keyword} {self.sql(child)}"
+                if isinstance(child, exp.PartitionList):
+                    return self.sql(child)
+                if isinstance(child, exp.PartitionRange):
+                    return f"{partition_keyword} {self.sql(child)}"
+            if expressions and all(
+                not isinstance(e, (exp.PartitionList, exp.PartitionRange, exp.Column))
+                for e in expressions
+            ):
                 values = self.expressions(expression, flat=True)
-                return f"{partition_keyword} FOR({values})"
-            else:
-                # 生成标准 PARTITION 语法
-                values = self.expressions(expression, flat=True)
-                return f"{partition_keyword}({values})"
+                return f"{partition_keyword} FOR ({values})"
+
+            return super().partition_sql(expression)

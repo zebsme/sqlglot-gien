@@ -3439,6 +3439,17 @@ class AlterToNode(Expression):
         "expressions": True,  # 节点名列表（必需）
     }
 
+class AlterOwner(Expression):
+    """
+    ALTER OWNER 表达式。
+
+    表示 ALTER <object> OWNER TO <new_owner> 语句。
+    """
+    arg_types = {
+        "this": False,       # 目标对象（可选）
+        "expression": True,  # 新的所有者
+    }
+
 class SwapTable(Expression):
     """
     交换表表达式类。
@@ -4395,6 +4406,15 @@ class Identifier(Expression):
         """
         return self.name
 
+    def assert_name(self, expected: str) -> "Identifier":
+        """
+        断言标识符名称。
+        """
+        actual = self.this or ""
+        if actual != expected:
+            raise AssertionError(f"Expected name '{expected}' but got '{actual}'")
+        return self
+
 
 # 参考：https://www.postgresql.org/docs/current/indexes-opclass.html
 class Opclass(Expression):
@@ -4481,6 +4501,7 @@ class Insert(DDL, DML):
         "settings": False,    # 插入设置
         "source": False,      # 数据源表达式
         "default": False,
+        "overriding": False,
     }
 
     def with_(
@@ -6356,6 +6377,14 @@ class TableReadWriteProperty(Property):
     # this: 读写类型（READ ONLY、WRITE ONLY, READ WRITE等）
     arg_types = {"this": True}
 
+class EnableRowMovementProperty(Property):
+    """
+    启用行移动属性。
+
+    用于支持 GaussDB `ENABLE ROW MOVEMENT` 语法。
+    """
+    arg_types = {}
+
 class SqlSecurityProperty(Property):
     """
     SQL安全属性类。
@@ -6595,6 +6624,14 @@ class TablespaceProperty(Property):
     """
     # this: 表空间名称
     arg_types = {"this": True}
+
+class PerNodeRejectLimitProperty(Property):
+    """
+    每节点拒绝限制属性。
+
+    表示 `PER NODE REJECT LIMIT` 配置，不带等号。
+    """
+    arg_types = {"this": True, "rows": False}
 
 class ServerProperty(Property):
     """
@@ -7029,6 +7066,13 @@ class Table(Expression):
     def catalog(self) -> str:
         """获取目录/模式名。"""
         return self.text("catalog")
+
+    def assert_name(self, expected: str) -> "Table":
+        parts = [p for p in (self.catalog, self.db, self.name) if p]
+        actual = ".".join(parts) if parts else self.name
+        if actual != expected:
+            raise AssertionError(f"Expected name '{expected}' but got '{actual}'")
+        return self
 
     @property
     def selects(self) -> t.List[Expression]:
@@ -9879,9 +9923,11 @@ class AddGaussDBPartition(Expression):
     """
     arg_types = {
         "this": True,        # 分区名称（必需）
-        "expressions": True, # 分区值列表（必需）
+        "expressions": False, # 分区值列表（部分语法需要）
         "exists": False,     # IF NOT EXISTS选项（可选）
         "values": False,     # VALUES/FOR VALUES类型（可选）
+        "range_from": False, # FOR VALUES FROM 子句（可选）
+        "range_to": False,   # FOR VALUES TO 子句（可选）
     }
 
 class AttachOption(Expression):
