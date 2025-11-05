@@ -121,7 +121,7 @@ class Dialects(str, Enum):
     GOLDENDB = "goldendb"
     GREENPLUM = "greenplum"
     HUDI_SPARK = "hudi_spark"
-    HUDI_FLINK = "hudi_flink"
+    # HUDI_FLINK = "hudi_flink"
     OCEANBASE_ORACLE = "oceanbase_oracle"
     OCEANBASE_MYSQL = "oceanbase_mysql"
     QIANBASEMPP = "qianbasempp"

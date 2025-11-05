@@ -146,7 +146,6 @@ class Teradata(Dialect):
             "TOP": TokenType.TOP,            # TOP 限制关键字
             "UPD": TokenType.UPDATE,         # UPDATE 的缩写形式
             "XMLAGG": TokenType.XMLAGG,      # XMLAGG 函数关键字
-            "MOD": TokenType.MOD,            # MOD 操作符
         }
         # 移除 Oracle 风格的提示注释支持
         KEYWORDS.pop("/*+")
@@ -919,7 +918,7 @@ class Teradata(Dialect):
                 - 处理 Mod 表达式
                 - 使用 % 操作符进行取模运算
             """
-            return self.binary(expression, "%")
+            return self.binary(expression, "MOD")
 
         def datatype_sql(self, expression: exp.DataType) -> str:
             """

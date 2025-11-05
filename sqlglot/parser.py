@@ -3188,7 +3188,7 @@ class Parser(metaclass=_Parser):
         if withisolatedloading:
             return withisolatedloading
         # 补充构建外表时 WITH作为LOG INTO用的情况
-        elif self._curr.token_type == TokenType.VAR:
+        elif self._curr.token_type == TokenType.VAR and self._next.text == "LOG":
             return self.expression(exp.WithJournalTableProperty, this=self._parse_table_parts())
             # self._advance()
             # return self.expression(
@@ -3196,6 +3196,8 @@ class Parser(metaclass=_Parser):
 
         if not self._next:
             return None
+        
+        return None
 
     def _parse_procedure_option(self) -> exp.Expression | None:
         """
@@ -7199,7 +7201,7 @@ class Parser(metaclass=_Parser):
         elif isinstance(this, exp.UNWRAPPED_QUERIES):
             # 某些查询在此处需包裹为子查询，以便后续可挂载别名/修饰
             this = self._parse_subquery(this=this, parse_alias=False)
-        elif isinstance(this, exp.Subquery):
+        elif isinstance(this, (exp.Subquery, exp.Values)):
             # 若已经是子查询，先解析可能的集合操作（UNION/INTERSECT/...）再继续
             this = self._parse_subquery(
                 this=self._parse_query_modifiers(self._parse_set_operations(this)),
@@ -10526,7 +10528,7 @@ class Parser(metaclass=_Parser):
                 param.set("expression", self._parse_field())
             else:
                 # 普通键值：解析未加引号的字段，兼容裸值/标识
-                param.set("expression", self._parse_unquoted_field())
+                param.set("expression", self._parse_unquoted_field() or self._parse_bracket())
 
             options.append(param)
             # 若启用 CSV 模式，则尝试消费逗号分隔，否者不分隔

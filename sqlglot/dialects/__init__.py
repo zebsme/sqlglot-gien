@@ -106,7 +106,7 @@ DIALECTS = [
 	"GoldenDB",
 	"Greenplum",
 	"Hudi_Spark",
-	"Hudi_Flink",
+	# "Hudi_Flink",
 	"OceanBase_Oracle",
 	"OceanBase_MySQL",
 	"QianBaseMPP",
