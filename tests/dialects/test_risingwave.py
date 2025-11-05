@@ -13,7 +13,7 @@ class TestRisingWave(Validator):
             },
         )
         self.validate_identity(
-            "CREATE SOURCE from_kafka (*, gen_i32_field INT AS int32_field + 2, gen_i64_field INT AS int64_field + 2, WATERMARK FOR time_col AS time_col - INTERVAL '5 SECOND') INCLUDE header foo VARCHAR AS myheader INCLUDE key AS mykey WITH (connector='kafka', topic='my_topic') FORMAT PLAIN ENCODE PROTOBUF (A=1, B=2) KEY ENCODE PROTOBUF (A=3, B=4)"
+            "CREATE SOURCE from_kafka (*, gen_i32_field INTEGER AS int32_field + 2, gen_i64_field INTEGER AS int64_field + 2, WATERMARK FOR time_col AS time_col - INTERVAL '5 SECOND') INCLUDE header foo VARCHAR AS myheader INCLUDE key AS mykey WITH (connector='kafka', topic='my_topic') FORMAT PLAIN ENCODE PROTOBUF (A=1, B=2) KEY ENCODE PROTOBUF (A=3, B=4)"
         )
         self.validate_identity(
             "CREATE SINK my_sink AS SELECT * FROM A WITH (connector='kafka', topic='my_topic') FORMAT PLAIN ENCODE PROTOBUF (A=1, B=2) KEY ENCODE PROTOBUF (A=3, B=4)"
@@ -23,16 +23,16 @@ class TestRisingWave(Validator):
         )
 
     def test_datatypes(self):
-        self.validate_identity("SELECT CAST(NULL AS MAP(VARCHAR, INT)) AS map_column")
+        self.validate_identity("SELECT CAST(NULL AS MAP(VARCHAR, INTEGER)) AS map_column")
 
         self.validate_identity(
-            "SELECT NULL::MAP<VARCHAR, INT> AS map_column",
-            "SELECT CAST(NULL AS MAP(VARCHAR, INT)) AS map_column",
+            "SELECT NULL::MAP<VARCHAR, INTEGER> AS map_column",
+            "SELECT CAST(NULL AS MAP(VARCHAR, INTEGER)) AS map_column",
         )
 
-        self.validate_identity("CREATE TABLE t (map_col MAP(VARCHAR, INT))")
+        self.validate_identity("CREATE TABLE t (map_col MAP(VARCHAR, INTEGER))")
 
         self.validate_identity(
-            "CREATE TABLE t (map_col MAP<VARCHAR, INT>)",
-            "CREATE TABLE t (map_col MAP(VARCHAR, INT))",
+            "CREATE TABLE t (map_col MAP<VARCHAR, INTEGER>)",
+            "CREATE TABLE t (map_col MAP(VARCHAR, INTEGER))",
         )

@@ -92,59 +92,59 @@ class TestTeradata(Validator):
             "REPLACE VIEW view_b (COL1, COL2) AS LOCKING ROW FOR ACCESS SELECT COL1, COL2 FROM table_b",
             "CREATE OR REPLACE VIEW view_b (COL1, COL2) AS LOCKING ROW FOR ACCESS SELECT COL1, COL2 FROM table_b",
         )
-        self.validate_identity("CREATE TABLE x (y INT) PRIMARY INDEX (y) PARTITION BY y INDEX (y)")
-        self.validate_identity("CREATE TABLE x (y INT) PARTITION BY y INDEX (y)")
+        self.validate_identity("CREATE TABLE x (y INTEGER) PRIMARY INDEX (y) PARTITION BY y INDEX (y)")
+        self.validate_identity("CREATE TABLE x (y INTEGER) PARTITION BY y INDEX (y)")
         self.validate_identity(
-            "CREATE MULTISET VOLATILE TABLE my_table (id INT) PRIMARY INDEX (id) ON COMMIT PRESERVE ROWS"
+            "CREATE MULTISET VOLATILE TABLE my_table (id INTEGER) PRIMARY INDEX (id) ON COMMIT PRESERVE ROWS"
         )
         self.validate_identity(
-            "CREATE SET VOLATILE TABLE my_table (id INT) PRIMARY INDEX (id) ON COMMIT DELETE ROWS"
+            "CREATE SET VOLATILE TABLE my_table (id INTEGER) PRIMARY INDEX (id) ON COMMIT DELETE ROWS"
         )
         self.validate_identity(
-            "CREATE TABLE a (b INT) PRIMARY INDEX (y) PARTITION BY RANGE_N(b BETWEEN 'a', 'b' AND 'c' EACH '1')"
+            "CREATE TABLE a (b INTEGER) PRIMARY INDEX (y) PARTITION BY RANGE_N(b BETWEEN 'a', 'b' AND 'c' EACH '1')"
         )
         self.validate_identity(
-            "CREATE TABLE a (b INT) PARTITION BY RANGE_N(b BETWEEN 0, 1 AND 2 EACH 1)"
+            "CREATE TABLE a (b INTEGER) PARTITION BY RANGE_N(b BETWEEN 0, 1 AND 2 EACH 1)"
         )
         self.validate_identity(
-            "CREATE TABLE a (b INT) PARTITION BY RANGE_N(b BETWEEN *, 1 AND * EACH b) INDEX (a)"
+            "CREATE TABLE a (b INTEGER) PARTITION BY RANGE_N(b BETWEEN *, 1 AND * EACH b) INDEX (a)"
         )
         self.validate_identity(
-            "CREATE TABLE a, NO FALLBACK PROTECTION, NO LOG, NO JOURNAL, CHECKSUM=ON, NO MERGEBLOCKRATIO, BLOCKCOMPRESSION=ALWAYS (a INT)"
+            "CREATE TABLE a, NO FALLBACK PROTECTION, NO LOG, NO JOURNAL, CHECKSUM=ON, NO MERGEBLOCKRATIO, BLOCKCOMPRESSION=ALWAYS (a INTEGER)"
         )
         self.validate_identity(
-            "CREATE TABLE a, NO FALLBACK PROTECTION, NO LOG, NO JOURNAL, CHECKSUM=ON, NO MERGEBLOCKRATIO, BLOCKCOMPRESSION=ALWAYS (a INT)"
+            "CREATE TABLE a, NO FALLBACK PROTECTION, NO LOG, NO JOURNAL, CHECKSUM=ON, NO MERGEBLOCKRATIO, BLOCKCOMPRESSION=ALWAYS (a INTEGER)"
         )
         self.validate_identity(
-            "CREATE TABLE a, WITH JOURNAL TABLE=x.y.z, CHECKSUM=OFF, MERGEBLOCKRATIO=1, DATABLOCKSIZE=10 KBYTES (a INT)"
+            "CREATE TABLE a, WITH JOURNAL TABLE=x.y.z, CHECKSUM=OFF, MERGEBLOCKRATIO=1, DATABLOCKSIZE=10 KBYTES (a INTEGER)"
         )
         self.validate_identity(
-            "CREATE TABLE a, BEFORE JOURNAL, AFTER JOURNAL, FREESPACE=1, DEFAULT DATABLOCKSIZE, BLOCKCOMPRESSION=DEFAULT (a INT)"
+            "CREATE TABLE a, BEFORE JOURNAL, AFTER JOURNAL, FREESPACE=1, DEFAULT DATABLOCKSIZE, BLOCKCOMPRESSION=DEFAULT (a INTEGER)"
         )
         self.validate_identity(
-            "CREATE TABLE a, DUAL JOURNAL, DUAL AFTER JOURNAL, MERGEBLOCKRATIO=1 PERCENT, DATABLOCKSIZE=10 KILOBYTES (a INT)"
+            "CREATE TABLE a, DUAL JOURNAL, DUAL AFTER JOURNAL, MERGEBLOCKRATIO=1 PERCENT, DATABLOCKSIZE=10 KILOBYTES (a INTEGER)"
         )
         self.validate_identity(
-            "CREATE TABLE a, DUAL BEFORE JOURNAL, LOCAL AFTER JOURNAL, MAXIMUM DATABLOCKSIZE, BLOCKCOMPRESSION=AUTOTEMP(c1 INT) (a INT)"
+            "CREATE TABLE a, DUAL BEFORE JOURNAL, LOCAL AFTER JOURNAL, MAXIMUM DATABLOCKSIZE, BLOCKCOMPRESSION=AUTOTEMP(c1 INTEGER) (a INTEGER)"
         )
         self.validate_identity(
-            "CREATE VOLATILE MULTISET TABLE a, NOT LOCAL AFTER JOURNAL, FREESPACE=1 PERCENT, DATABLOCKSIZE=10 BYTES, WITH NO CONCURRENT ISOLATED LOADING FOR ALL (a INT)"
+            "CREATE VOLATILE MULTISET TABLE a, NOT LOCAL AFTER JOURNAL, FREESPACE=1 PERCENT, DATABLOCKSIZE=10 BYTES, WITH NO CONCURRENT ISOLATED LOADING FOR ALL (a INTEGER)"
         )
         self.validate_identity(
             "CREATE VOLATILE SET TABLE example1 AS (SELECT col1, col2, col3 FROM table1) WITH DATA PRIMARY INDEX (col1) ON COMMIT PRESERVE ROWS"
         )
         self.validate_identity(
-            "CREATE SET GLOBAL TEMPORARY TABLE a, NO BEFORE JOURNAL, NO AFTER JOURNAL, MINIMUM DATABLOCKSIZE, BLOCKCOMPRESSION=NEVER (a INT)"
+            "CREATE SET GLOBAL TEMPORARY TABLE a, NO BEFORE JOURNAL, NO AFTER JOURNAL, MINIMUM DATABLOCKSIZE, BLOCKCOMPRESSION=NEVER (a INTEGER)"
         )
         self.validate_all(
             """
             CREATE SET TABLE test, NO FALLBACK, NO BEFORE JOURNAL, NO AFTER JOURNAL,
-            CHECKSUM = DEFAULT (x INT, y INT, z CHAR(30), a INT, b DATE, e INT)
+            CHECKSUM = DEFAULT (x INTEGER, y INTEGER, z CHAR(30), a INTEGER, b DATE, e INTEGER)
             PRIMARY INDEX (a),
             INDEX(x, y)
             """,
             write={
-                "teradata": "CREATE SET TABLE test, NO FALLBACK, NO BEFORE JOURNAL, NO AFTER JOURNAL, CHECKSUM=DEFAULT (x INT, y INT, z CHAR(30), a INT, b DATE, e INT) PRIMARY INDEX (a) INDEX (x, y)",
+                "teradata": "CREATE SET TABLE test, NO FALLBACK, NO BEFORE JOURNAL, NO AFTER JOURNAL, CHECKSUM=DEFAULT (x INTEGER, y INTEGER, z CHAR(30), a INTEGER, b DATE, e INTEGER) PRIMARY INDEX (a) INDEX (x, y)",
             },
         )
         self.validate_all(
@@ -176,13 +176,13 @@ class TestTeradata(Validator):
             },
         )
         self.validate_identity(
-            "CREATE TABLE db.foo (id INT NOT NULL, valid_date DATE FORMAT 'YYYY-MM-DD', measurement INT COMPRESS)"
+            "CREATE TABLE db.foo (id INTEGER NOT NULL, valid_date DATE FORMAT 'YYYY-MM-DD', measurement INTEGER COMPRESS)"
         )
         self.validate_identity(
-            "CREATE TABLE db.foo (id INT NOT NULL, valid_date DATE FORMAT 'YYYY-MM-DD', measurement INT COMPRESS (1, 2, 3))"
+            "CREATE TABLE db.foo (id INTEGER NOT NULL, valid_date DATE FORMAT 'YYYY-MM-DD', measurement INTEGER COMPRESS (1, 2, 3))"
         )
         self.validate_identity(
-            "CREATE TABLE db.foo (id INT NOT NULL, valid_date DATE FORMAT 'YYYY-MM-DD' COMPRESS (CAST('9999-09-09' AS DATE)), measurement INT)"
+            "CREATE TABLE db.foo (id INTEGER NOT NULL, valid_date DATE FORMAT 'YYYY-MM-DD' COMPRESS (CAST('9999-09-09' AS DATE)), measurement INTEGER)"
         )
 
     def test_insert(self):
@@ -222,7 +222,7 @@ class TestTeradata(Validator):
             },
         )
 
-        self.validate_identity("CREATE TABLE z (a SYSUDTLIB.INT)")
+        self.validate_identity("CREATE TABLE z (a SYSUDTLIB.INTEGER)")
 
     def test_cast(self):
         self.validate_all(
@@ -259,8 +259,8 @@ class TestTeradata(Validator):
         self.validate_identity("SELECT Col1 (FORMAT '+9999') FROM Test1")
         self.validate_identity("SELECT date_col (FORMAT 'YYYY-MM-DD') FROM t")
         self.validate_identity(
-            "SELECT CAST(Col1 AS INTEGER) FROM Test1",
             "SELECT CAST(Col1 AS INT) FROM Test1",
+            "SELECT CAST(Col1 AS INTEGER) FROM Test1",
         )
 
     def test_time(self):
@@ -331,9 +331,9 @@ class TestTeradata(Validator):
             },
         )
         self.validate_all(
-            "CAST(TO_CHAR(x, 'Q') AS INT)",
+            "CAST(TO_CHAR(x, 'Q') AS INTEGER)",
             read={
-                "teradata": "CAST(TO_CHAR(x, 'Q') AS INT)",
+                "teradata": "CAST(TO_CHAR(x, 'Q') AS INTEGER)",
                 "snowflake": "DATE_PART(QUARTER, x)",
                 "bigquery": "EXTRACT(QUARTER FROM x)",
             },
@@ -347,10 +347,10 @@ class TestTeradata(Validator):
             },
         )
         self.validate_all(
-            "CAST(TO_CHAR(x, 'Q') AS INT)",
+            "CAST(TO_CHAR(x, 'Q') AS INTEGER)",
             read={
                 "snowflake": "quarter(x)",
-                "teradata": "CAST(TO_CHAR(x, 'Q') AS INT)",
+                "teradata": "CAST(TO_CHAR(x, 'Q') AS INTEGER)",
             },
         )
 

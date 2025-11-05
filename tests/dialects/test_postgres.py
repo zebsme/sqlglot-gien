@@ -68,7 +68,7 @@ class TestPostgres(Validator):
         self.validate_identity("SELECT * FROM x WHERE SUBSTRING('Thomas' FROM '...$') IN ('mas')")
         self.validate_identity("SELECT TRIM(' X' FROM ' XXX ')")
         self.validate_identity("SELECT TRIM(LEADING 'bla' FROM ' XXX ' COLLATE utf8_bin)")
-        self.validate_identity("""SELECT * FROM JSON_TO_RECORDSET(z) AS y("rank" INT)""")
+        self.validate_identity("""SELECT * FROM JSON_TO_RECORDSET(z) AS y("rank" INTEGER)""")
         self.validate_identity("x ~ 'y'")
         self.validate_identity("x ~* 'y'")
         self.validate_identity("SELECT * FROM r CROSS JOIN LATERAL UNNEST(ARRAY[1]) AS s(location)")
@@ -90,10 +90,10 @@ class TestPostgres(Validator):
             "SELECT * FROM test_data, LATERAL JSONB_ARRAY_ELEMENTS(data) WITH ORDINALITY AS elem(value, ordinality)"
         )
         self.validate_identity(
-            "SELECT id, name FROM xml_data AS t, XMLTABLE('/root/user' PASSING t.xml COLUMNS id INT PATH '@id', name TEXT PATH 'name/text()') AS x"
+            "SELECT id, name FROM xml_data AS t, XMLTABLE('/root/user' PASSING t.xml COLUMNS id INTEGER PATH '@id', name TEXT PATH 'name/text()') AS x"
         )
         self.validate_identity(
-            "SELECT id, value FROM xml_content AS t, XMLTABLE(XMLNAMESPACES('http://example.com/ns1' AS ns1, 'http://example.com/ns2' AS ns2), '/root/data' PASSING t.xml COLUMNS id INT PATH '@ns1:id', value TEXT PATH 'ns2:value/text()') AS x"
+            "SELECT id, value FROM xml_content AS t, XMLTABLE(XMLNAMESPACES('http://example.com/ns1' AS ns1, 'http://example.com/ns2' AS ns2), '/root/data' PASSING t.xml COLUMNS id INTEGER PATH '@ns1:id', value TEXT PATH 'ns2:value/text()') AS x"
         )
         self.validate_identity(
             "SELECT * FROM t WHERE some_column >= CURRENT_DATE + INTERVAL '1 day 1 hour' AND some_another_column IS TRUE"
@@ -415,9 +415,9 @@ FROM json_data, field_ids""",
             },
         )
         self.validate_all(
-            "SELECT ARRAY[]::INT[] AS foo",
+            "SELECT ARRAY[]::INTEGER[] AS foo",
             write={
-                "postgres": "SELECT CAST(ARRAY[] AS INT[]) AS foo",
+                "postgres": "SELECT CAST(ARRAY[] AS INTEGER[]) AS foo",
                 "duckdb": "SELECT CAST([] AS INT[]) AS foo",
             },
         )
@@ -450,9 +450,9 @@ FROM json_data, field_ids""",
             },
         )
         self.validate_all(
-            "CREATE TABLE t (c INT)",
+            "CREATE TABLE t (c INTEGER)",
             read={
-                "mysql": "CREATE TABLE t (c INT COMMENT 'comment 1') COMMENT = 'comment 2'",
+                "mysql": "CREATE TABLE t (c INTEGER COMMENT 'comment 1') COMMENT = 'comment 2'",
             },
         )
         self.validate_all(
@@ -823,7 +823,7 @@ FROM json_data, field_ids""",
         )
         self.assertIsInstance(self.parse_one("id::UUID"), exp.Cast)
 
-        self.validate_identity('1::"int"', "CAST(1 AS INT)").to.is_type(exp.DataType.Type.INT)
+        self.validate_identity('1::"int"', "CAST(1 AS INTEGER)").to.is_type(exp.DataType.Type.INT)
         self.validate_identity(
             '1::"udt"', 'CAST(1 AS "udt")'
         ).to.this == exp.DataType.Type.USERDEFINED
@@ -1008,8 +1008,8 @@ FROM json_data, field_ids""",
         self.validate_identity('ALTER INDEX "IX_Ratings_Column1" RENAME TO "IX_Ratings_Column2"')
         self.validate_identity('CREATE TABLE x (a TEXT COLLATE "de_DE")')
         self.validate_identity('CREATE TABLE x (a TEXT COLLATE pg_catalog."default")')
-        self.validate_identity("CREATE TABLE t (col INT[3][5])")
-        self.validate_identity("CREATE TABLE t (col INT[3])")
+        self.validate_identity("CREATE TABLE t (col INTEGER[3][5])")
+        self.validate_identity("CREATE TABLE t (col INTEGER[3])")
         self.validate_identity("CREATE INDEX IF NOT EXISTS ON t(c)")
         self.validate_identity("CREATE INDEX et_vid_idx ON et(vid) INCLUDE (fid)")
         self.validate_identity("CREATE INDEX idx_x ON x USING BTREE(x, y) WHERE (NOT y IS NULL)")
@@ -1018,7 +1018,7 @@ FROM json_data, field_ids""",
         self.validate_identity("CREATE TABLE test (foo HSTORE)")
         self.validate_identity("CREATE TABLE test (foo JSONB)")
         self.validate_identity("CREATE TABLE test (foo VARCHAR(64)[])")
-        self.validate_identity("CREATE TABLE test (foo INT) PARTITION BY HASH(foo)")
+        self.validate_identity("CREATE TABLE test (foo INTEGER) PARTITION BY HASH(foo)")
         self.validate_identity("INSERT INTO x VALUES (1, 'a', 2.0) RETURNING a")
         self.validate_identity("INSERT INTO x VALUES (1, 'a', 2.0) RETURNING a, b")
         self.validate_identity("INSERT INTO x VALUES (1, 'a', 2.0) RETURNING *")
@@ -1026,7 +1026,7 @@ FROM json_data, field_ids""",
         self.validate_identity("CREATE TABLE cities_partdef PARTITION OF cities DEFAULT")
         self.validate_identity("CREATE TABLE t (c CHAR(2) UNIQUE NOT NULL) INHERITS (t1)")
         self.validate_identity("CREATE TABLE s.t (c CHAR(2) UNIQUE NOT NULL) INHERITS (s.t1, s.t2)")
-        self.validate_identity("CREATE FUNCTION x(INT) RETURNS INT SET search_path = 'public'")
+        self.validate_identity("CREATE FUNCTION x(INTEGER) RETURNS INTEGER SET search_path = 'public'")
         self.validate_identity("TRUNCATE TABLE t1 CONTINUE IDENTITY")
         self.validate_identity("TRUNCATE TABLE t1 RESTART IDENTITY")
         self.validate_identity("TRUNCATE TABLE t1 CASCADE")
@@ -1047,20 +1047,20 @@ FROM json_data, field_ids""",
             "ALTER TABLE tested_table ADD CONSTRAINT unique_example UNIQUE (column_name) NOT VALID"
         )
         self.validate_identity(
-            "CREATE FUNCTION pymax(a INT, b INT) RETURNS INT LANGUAGE plpython3u AS $$\n  if a > b:\n    return a\n  return b\n$$",
+            "CREATE FUNCTION pymax(a INTEGER, b INTEGER) RETURNS INTEGER LANGUAGE plpython3u AS $$\n  if a > b:\n    return a\n  return b\n$$",
         )
         self.validate_identity(
-            "CREATE TABLE t (vid INT NOT NULL, CONSTRAINT ht_vid_nid_fid_idx EXCLUDE (INT4RANGE(vid, nid) WITH &&, INT4RANGE(fid, fid, '[]') WITH &&))"
+            "CREATE TABLE t (vid INTEGER NOT NULL, CONSTRAINT ht_vid_nid_fid_idx EXCLUDE (INT4RANGE(vid, nid) WITH &&, INT4RANGE(fid, fid, '[]') WITH &&))"
         )
-        self.validate_identity("CREATE TABLE t (i INT, a TEXT, PRIMARY KEY (i) INCLUDE (a))")
+        self.validate_identity("CREATE TABLE t (i INTEGER, a TEXT, PRIMARY KEY (i) INCLUDE (a))")
         self.validate_identity(
-            "CREATE TABLE t (i INT, PRIMARY KEY (i), EXCLUDE USING gist(col varchar_pattern_ops DESC NULLS LAST WITH &&) WITH (sp1=1, sp2=2))"
-        )
-        self.validate_identity(
-            "CREATE TABLE t (i INT, EXCLUDE USING btree(INT4RANGE(vid, nid, '[]') ASC NULLS FIRST WITH &&) INCLUDE (col1, col2))"
+            "CREATE TABLE t (i INTEGER, PRIMARY KEY (i), EXCLUDE USING gist(col varchar_pattern_ops DESC NULLS LAST WITH &&) WITH (sp1=1, sp2=2))"
         )
         self.validate_identity(
-            "CREATE TABLE t (i INT, EXCLUDE USING gin(col1 WITH &&, col2 WITH ||) USING INDEX TABLESPACE tablespace WHERE (id > 5))"
+            "CREATE TABLE t (i INTEGER, EXCLUDE USING btree(INT4RANGE(vid, nid, '[]') ASC NULLS FIRST WITH &&) INCLUDE (col1, col2))"
+        )
+        self.validate_identity(
+            "CREATE TABLE t (i INTEGER, EXCLUDE USING gin(col1 WITH &&, col2 WITH ||) USING INDEX TABLESPACE tablespace WHERE (id > 5))"
         )
         self.validate_identity(
             "CREATE TABLE A (LIKE B INCLUDING CONSTRAINT INCLUDING COMPRESSION EXCLUDING COMMENTS)"
@@ -1115,17 +1115,17 @@ FROM json_data, field_ids""",
             "CREATE TABLE test (x TIMESTAMP[][])",
         )
         self.validate_identity(
-            "CREATE FUNCTION add(integer, integer) RETURNS INT LANGUAGE SQL IMMUTABLE RETURNS NULL ON NULL INPUT AS 'select $1 + $2;'",
+            "CREATE FUNCTION add(integer, integer) RETURNS INTEGER LANGUAGE SQL IMMUTABLE RETURNS NULL ON NULL INPUT AS 'select $1 + $2;'",
         )
         self.validate_identity(
-            "CREATE FUNCTION add(integer, integer) RETURNS INT LANGUAGE SQL IMMUTABLE STRICT AS 'select $1 + $2;'"
+            "CREATE FUNCTION add(integer, integer) RETURNS INTEGER LANGUAGE SQL IMMUTABLE STRICT AS 'select $1 + $2;'"
         )
         self.validate_identity(
-            "CREATE FUNCTION add(INT, INT) RETURNS INT SET search_path TO 'public' AS 'select $1 + $2;' LANGUAGE SQL IMMUTABLE",
+            "CREATE FUNCTION add(INTEGER, INTEGER) RETURNS INTEGER SET search_path TO 'public' AS 'select $1 + $2;' LANGUAGE SQL IMMUTABLE",
             check_command_warning=True,
         )
         self.validate_identity(
-            "CREATE FUNCTION x(INT) RETURNS INT SET foo FROM CURRENT",
+            "CREATE FUNCTION x(INTEGER) RETURNS INTEGER SET foo FROM CURRENT",
             check_command_warning=True,
         )
         self.validate_identity(
@@ -1144,15 +1144,15 @@ FROM json_data, field_ids""",
         )
         self.validate_identity(
             "CREATE TABLE t (col integer ARRAY[3])",
-            "CREATE TABLE t (col INT[3])",
+            "CREATE TABLE t (col INTEGER[3])",
         )
         self.validate_identity(
             "CREATE TABLE t (col integer ARRAY)",
-            "CREATE TABLE t (col INT[])",
+            "CREATE TABLE t (col INTEGER[])",
         )
         self.validate_identity(
-            "CREATE FUNCTION x(INT) RETURNS INT SET search_path TO 'public'",
-            "CREATE FUNCTION x(INT) RETURNS INT SET search_path = 'public'",
+            "CREATE FUNCTION x(INTEGER) RETURNS INTEGER SET search_path TO 'public'",
+            "CREATE FUNCTION x(INTEGER) RETURNS INTEGER SET search_path = 'public'",
         )
         self.validate_identity(
             "CREATE TABLE test (x TIMESTAMP WITHOUT TIME ZONE[][])",
@@ -1163,20 +1163,20 @@ FROM json_data, field_ids""",
             "CREATE OR REPLACE FUNCTION function_name(input_a VARCHAR DEFAULT CAST(NULL AS VARCHAR))",
         )
         self.validate_identity(
-            "CREATE TABLE products (product_no INT UNIQUE, name TEXT, price DECIMAL)",
-            "CREATE TABLE products (product_no INT UNIQUE, name TEXT, price DECIMAL)",
+            "CREATE TABLE products (product_no INTEGER UNIQUE, name TEXT, price DECIMAL)",
+            "CREATE TABLE products (product_no INTEGER UNIQUE, name TEXT, price DECIMAL)",
         )
         self.validate_identity(
-            "CREATE TABLE products (product_no INT CONSTRAINT must_be_different UNIQUE, name TEXT CONSTRAINT present NOT NULL, price DECIMAL)",
-            "CREATE TABLE products (product_no INT CONSTRAINT must_be_different UNIQUE, name TEXT CONSTRAINT present NOT NULL, price DECIMAL)",
+            "CREATE TABLE products (product_no INTEGER CONSTRAINT must_be_different UNIQUE, name TEXT CONSTRAINT present NOT NULL, price DECIMAL)",
+            "CREATE TABLE products (product_no INTEGER CONSTRAINT must_be_different UNIQUE, name TEXT CONSTRAINT present NOT NULL, price DECIMAL)",
         )
         self.validate_identity(
-            "CREATE TABLE products (product_no INT, name TEXT, price DECIMAL, UNIQUE (product_no, name))",
-            "CREATE TABLE products (product_no INT, name TEXT, price DECIMAL, UNIQUE (product_no, name))",
+            "CREATE TABLE products (product_no INTEGER, name TEXT, price DECIMAL, UNIQUE (product_no, name))",
+            "CREATE TABLE products (product_no INTEGER, name TEXT, price DECIMAL, UNIQUE (product_no, name))",
         )
         self.validate_identity(
             "CREATE TABLE products ("
-            "product_no INT UNIQUE,"
+            "product_no INTEGER UNIQUE,"
             " name TEXT,"
             " price DECIMAL CHECK (price > 0),"
             " discounted_price DECIMAL CONSTRAINT positive_discount CHECK (discounted_price > 0),"
@@ -1221,10 +1221,10 @@ FROM json_data, field_ids""",
             },
         )
 
-        self.validate_identity("CREATE TABLE tbl (col INT UNIQUE NULLS NOT DISTINCT DEFAULT 9.99)")
+        self.validate_identity("CREATE TABLE tbl (col INTEGER UNIQUE NULLS NOT DISTINCT DEFAULT 9.99)")
         self.validate_identity("CREATE TABLE tbl (col UUID UNIQUE DEFAULT GEN_RANDOM_UUID())")
         self.validate_identity("CREATE TABLE tbl (col UUID, UNIQUE NULLS NOT DISTINCT (col))")
-        self.validate_identity("CREATE TABLE tbl (col_a INT GENERATED ALWAYS AS (1 + 2) STORED)")
+        self.validate_identity("CREATE TABLE tbl (col_a INTEGER GENERATED ALWAYS AS (1 + 2) STORED)")
 
         self.validate_identity("CREATE INDEX CONCURRENTLY ix_table_id ON tbl USING btree(id)")
         self.validate_identity(
@@ -1239,7 +1239,7 @@ FROM json_data, field_ids""",
             """
         CREATE TABLE IF NOT EXISTS public.rental
         (
-            inventory_id INT NOT NULL,
+            inventory_id INTEGER NOT NULL,
             CONSTRAINT rental_customer_id_fkey FOREIGN KEY (customer_id)
                 REFERENCES public.customer (customer_id) MATCH FULL
                 ON UPDATE CASCADE
@@ -1255,7 +1255,7 @@ FROM json_data, field_ids""",
             INITIALLY IMMEDIATE
         )
         """,
-            "CREATE TABLE IF NOT EXISTS public.rental (inventory_id INT NOT NULL, CONSTRAINT rental_customer_id_fkey FOREIGN KEY (customer_id) REFERENCES public.customer (customer_id) MATCH FULL ON UPDATE CASCADE ON DELETE RESTRICT, CONSTRAINT rental_inventory_id_fkey FOREIGN KEY (inventory_id) REFERENCES public.inventory (inventory_id) MATCH PARTIAL ON UPDATE CASCADE ON DELETE RESTRICT, CONSTRAINT rental_staff_id_fkey FOREIGN KEY (staff_id) REFERENCES public.staff (staff_id) MATCH SIMPLE ON UPDATE CASCADE ON DELETE RESTRICT, INITIALLY IMMEDIATE)",
+            "CREATE TABLE IF NOT EXISTS public.rental (inventory_id INTEGER NOT NULL, CONSTRAINT rental_customer_id_fkey FOREIGN KEY (customer_id) REFERENCES public.customer (customer_id) MATCH FULL ON UPDATE CASCADE ON DELETE RESTRICT, CONSTRAINT rental_inventory_id_fkey FOREIGN KEY (inventory_id) REFERENCES public.inventory (inventory_id) MATCH PARTIAL ON UPDATE CASCADE ON DELETE RESTRICT, CONSTRAINT rental_staff_id_fkey FOREIGN KEY (staff_id) REFERENCES public.staff (staff_id) MATCH SIMPLE ON UPDATE CASCADE ON DELETE RESTRICT, INITIALLY IMMEDIATE)",
         )
 
         with self.assertRaises(ParseError):
@@ -1415,10 +1415,10 @@ CROSS JOIN JSON_ARRAY_ELEMENTS(CAST(JSON_EXTRACT_PATH(tbox, 'boxes') AS JSON)) A
     def test_rows_from(self):
         self.validate_identity("""SELECT * FROM ROWS FROM (FUNC1(col1, col2))""")
         self.validate_identity(
-            """SELECT * FROM ROWS FROM (FUNC1(col1) AS alias1("col1" TEXT), FUNC2(col2) AS alias2("col2" INT)) WITH ORDINALITY"""
+            """SELECT * FROM ROWS FROM (FUNC1(col1) AS alias1("col1" TEXT), FUNC2(col2) AS alias2("col2" INTEGER)) WITH ORDINALITY"""
         )
         self.validate_identity(
-            """SELECT * FROM table1, ROWS FROM (FUNC1(col1) AS alias1("col1" TEXT)) WITH ORDINALITY AS alias3("col3" INT, "col4" TEXT)"""
+            """SELECT * FROM table1, ROWS FROM (FUNC1(col1) AS alias1("col1" TEXT)) WITH ORDINALITY AS alias3("col3" INTEGER, "col4" TEXT)"""
         )
 
     def test_array_length(self):
@@ -1535,7 +1535,7 @@ CROSS JOIN JSON_ARRAY_ELEMENTS(CAST(JSON_EXTRACT_PATH(tbox, 'boxes') AS JSON)) A
         self.validate_identity("ROUND(x, y)")
         self.validate_identity("ROUND(CAST(x AS DOUBLE PRECISION))")
         self.validate_identity("ROUND(CAST(x AS DECIMAL), 4)")
-        self.validate_identity("ROUND(CAST(x AS INT), 4)")
+        self.validate_identity("ROUND(CAST(x AS INTEGER), 4)")
         self.validate_all(
             "ROUND(CAST(CAST(x AS DOUBLE PRECISION) AS DECIMAL), 4)",
             read={

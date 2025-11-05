@@ -2210,11 +2210,11 @@ class TestSnowflake(Validator):
         self.validate_all(
             "CREATE OR REPLACE TRANSIENT TABLE a (id INT)",
             read={
-                "postgres": "CREATE OR REPLACE TRANSIENT TABLE a (id INT)",
+                "postgres": "CREATE OR REPLACE TRANSIENT TABLE a (id INTEGER)",
                 "snowflake": "CREATE OR REPLACE TRANSIENT TABLE a (id INT)",
             },
             write={
-                "postgres": "CREATE OR REPLACE TABLE a (id INT)",
+                "postgres": "CREATE OR REPLACE TABLE a (id INTEGER)",
                 "mysql": "CREATE OR REPLACE TABLE a (id INT)",
                 "snowflake": "CREATE OR REPLACE TRANSIENT TABLE a (id INT)",
             },
