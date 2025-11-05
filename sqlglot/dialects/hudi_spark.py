@@ -306,7 +306,7 @@ class Hudi_Spark(Spark2):
         }
         TRANSFORMS.pop(exp.AnyValue)
         TRANSFORMS.pop(exp.DateDiff)
-        TRANSFORMS.pop(exp.Group)
+        # TRANSFORMS.pop(exp.Group)
 
         def bracket_sql(self, expression: exp.Bracket) -> str:
             if expression.args.get("safe"):

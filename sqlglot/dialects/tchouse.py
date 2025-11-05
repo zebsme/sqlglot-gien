@@ -1,7 +1,7 @@
-from sqlpolyglot import exp, tokens
-from sqlpolyglot.dialects.postgres import Postgres
-from sqlpolyglot.generator import Generator
-from sqlpolyglot.tokens import Tokenizer, TokenType
+from sqlglot import exp, tokens
+from sqlglot.dialects.postgres import Postgres
+from sqlglot.generator import Generator
+from sqlglot.tokens import Tokenizer, TokenType
 
 # 实际应当衍生自ClickHouse
 class TCHouse(Postgres): 
