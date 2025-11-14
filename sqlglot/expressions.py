@@ -4696,11 +4696,12 @@ class LoadData(Expression):
 class Partition(Expression):
     """
     分区表达式类。
-    
+
     表示表分区的定义，包括分区列和子分区。
     分区是大型表的重要优化技术，提高查询性能和数据管理效率。
     """
     arg_types = {
+        "this": False,       # 分区名称（可选：分区选择时无名称）
         "expressions": True,  # 分区表达式列表（分区列和值）
         "subpartition": False, # 子分区定义（某些数据库支持二级分区）
     }
