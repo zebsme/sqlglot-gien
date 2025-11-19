@@ -23,8 +23,8 @@ class TestGaussDB(Validator):
                     WHERE DATA_DT = DATE'2024-01-01'
                     """
                 ).strip(),
-                "CREATE TABLE CDB.hx_check_bal_info_RESULT TABLESPACE=h_tbs_cdb DISTRIBUTED BY HASH "
-                "(ORG_NO, SBJ_NO, DATA_DT) WITH (orientation=column) AS SELECT DATA_DT, ORG_NO, SBJ_NO, "
+                "CREATE TABLE CDB.hx_check_bal_info_RESULT WITH (orientation=column) TABLESPACE h_tbs_cdb "
+                "DISTRIBUTE BY HASH (ORG_NO, SBJ_NO, DATA_DT) AS SELECT DATA_DT, ORG_NO, SBJ_NO, "
                 "SRC_SYS, DIF_VAL FROM CDB.hx_check_bal_info WHERE DATA_DT = CAST('2024-01-01' AS DATE)",
             ),
             (
@@ -38,8 +38,8 @@ class TestGaussDB(Validator):
                     FROM ODB.S56_BIZ_CUS_INDIV T
                     """
                 ).strip(),
-                "CREATE TABLE TMP.CUS_BLK_LIST_TMP_12345678 DISTRIBUTED BY HASH (cus_id) WITH "
-                "(orientation=column) AS SELECT T.AGRI_FLG AS CITY_VILLAGE_FLG FROM ODB.S56_BIZ_CUS_INDIV AS T",
+                "CREATE TABLE TMP.CUS_BLK_LIST_TMP_12345678 WITH (orientation=column) "
+                "DISTRIBUTE BY HASH (cus_id) AS SELECT T.AGRI_FLG AS CITY_VILLAGE_FLG FROM ODB.S56_BIZ_CUS_INDIV AS T",
             ),
         )
 
@@ -74,7 +74,7 @@ class TestGaussDB(Validator):
 
     def test_enable_row_movement_property(self):
         sql = "CREATE TABLE t (c INT) ENABLE ROW MOVEMENT"
-        expr = self.validate_identity(sql, write_sql="CREATE TABLE t (c INT4) ENABLE ROW MOVEMENT")
+        expr = self.validate_identity(sql, write_sql="CREATE TABLE t (c INTEGER) ENABLE ROW MOVEMENT")
         expr.assert_is(exp.Create)
         self.assertEqual("CREATE TABLE t (c INT) ENABLE ROW MOVEMENT", expr.sql())
 
@@ -160,7 +160,7 @@ class TestGaussDB(Validator):
         sql = dedent(
             """
             CREATE FOREIGN TABLE IF NOT EXISTS SDB.S01_VAFW54_EXT (
-                V54NODE VARCHAR2(54)
+                V54NODE VARCHAR(54)
             )
             SERVER gsmpp_server
             OPTIONS (
@@ -175,8 +175,8 @@ class TestGaussDB(Validator):
         ).strip()
         expected = (
             "CREATE FOREIGN TABLE IF NOT EXISTS SDB.S01_VAFW54_EXT (V54NODE VARCHAR(54)) "
-            "SERVER gsmpp_server LOCATION '/FCB_DATA/20240101/S01_VAFW54.txt' READ ONLY LOG INTO "
-            "SDB.S01_VAFW54_ERR PER NODE REJECT LIMIT 'unlimited' WITH (FORMAT='TEXT', MODE='NORMAL', ENCODING='UTF8')"
+            "SERVER gsmpp_server OPTIONS (LOCATION '/FCB_DATA/20240101/S01_VAFW54.txt', FORMAT 'TEXT', MODE 'NORMAL', ENCODING 'UTF8') "
+            "READ ONLY LOG INTO SDB.S01_VAFW54_ERR PER NODE REJECT LIMIT 'unlimited'"
         )
         expr = self.validate_identity(sql, write_sql=expected)
         expr.assert_is(exp.Create)
@@ -185,7 +185,7 @@ class TestGaussDB(Validator):
         sql = dedent(
             """
             CREATE FOREIGN TABLE t (
-                c INT
+                c INTEGER
             )
             SERVER s
             OPTIONS (FORMAT 'TEXT')
@@ -194,7 +194,7 @@ class TestGaussDB(Validator):
         ).strip()
         expr = self.validate_identity(
             sql,
-            write_sql="CREATE FOREIGN TABLE t (c INT4) SERVER s LOG INTO err PER NODE REJECT LIMIT 10 ROWS WITH (FORMAT='TEXT')",
+            write_sql="CREATE FOREIGN TABLE t (c INTEGER) SERVER s OPTIONS (FORMAT 'TEXT') LOG INTO err PER NODE REJECT LIMIT 10 ROWS",
         )
         prop = expr.assert_is(exp.Create).args["properties"].find(exp.PerNodeRejectLimitProperty)
         self.assertTrue(prop.args.get("rows"))

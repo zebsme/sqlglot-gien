@@ -8730,7 +8730,6 @@ class Parser(metaclass=_Parser):
 
     def _parse_match_against(self) -> exp.MatchAgainst:
         """解析 MySQL 风格 `MATCH(col1, col2) AGAINST('query' <modifier>)`。"""
-        expressions = self._parse_csv(self._parse_column)
         if self._match_text_seq("TABLE"):
             # parse SingleStore MATCH(TABLE ...) syntax
             # https://docs.singlestore.com/cloud/reference/sql-reference/full-text-search-functions/match/

@@ -1,3 +1,4 @@
+from ast import Return
 from sqlglot import exp, tokens
 from sqlglot.dialects.postgres import Postgres
 from sqlglot.dialects.dialect import build_formatted_time
@@ -57,8 +58,8 @@ class GaussDB(Postgres):  # 继承自 PostgreSQL 方言
         
         # OPTIONS中各类参数的解析器
         OPTION_PARSERS = {
-            "LOCATION":lambda self: self._parse_property_assignment(exp.LocationProperty),
-            "FORMAT": lambda self: self._parse_property_assignment(exp.FileFormatProperty),
+            "LOCATION":lambda self: self.parse_kv_property(key="LOCATION", quoted=True),
+            "FORMAT": lambda self: self.parse_kv_property(key="FORMAT", quoted=True),
             "HEADER":lambda self: self.parse_kv_property(key="HEADER", quoted=True),
             "FILEHEADER":lambda self: self.parse_kv_property(key="FILEHEADER", quoted=True),
             "OUT_FILENAME_PREFIX":lambda self: self.parse_kv_property(key="OUT_FILENAME_PREFIX", quoted=True),
@@ -126,7 +127,7 @@ class GaussDB(Postgres):  # 继承自 PostgreSQL 方言
             """解析形如 `KEY "VALUE"` 的K-V属性。"""
             if self._match_set(self.OPTION_VALUE_PARSERS):
                 value = self.OPTION_VALUE_PARSERS[self._prev.token_type](self, self._prev)
-                return self.expression(exp.Property, this=key, value=value)
+                return self.expression(exp.OptionProperty, this=key, value=value)
             return self._parse_placeholder()
 
         def _parse_per_node_reject_limit_property(self) -> t.Optional[exp.Expression]:
@@ -154,7 +155,8 @@ class GaussDB(Postgres):  # 继承自 PostgreSQL 方言
 
         def _parse_options_property(self) -> t.List[exp.Expression]:
             """解析 OPTIONS (...) 子句，直接返回属性列表以复用现有属性节点。"""
-            return [opt for opt in self._parse_wrapped_csv(self._parse_option_property) if opt]
+            option_properties = [opt for opt in self._parse_wrapped_csv(self._parse_option_property) if opt]
+            return self.expression(exp.OptionsProperty, expressions=option_properties)
         
         def _parse_option_property(self) -> t.Optional[exp.Expression]:
             """
@@ -505,16 +507,17 @@ class GaussDB(Postgres):  # 继承自 PostgreSQL 方言
         TYPE_MAPPING = {
             **Postgres.Generator.TYPE_MAPPING,  # 继承原有映射
             exp.DataType.Type.DECIMAL: "NUMERIC",  # DECIMAL → NUMERIC
-            exp.DataType.Type.INT: "INT4",  # INT → INT4
-            exp.DataType.Type.BIGINT: "INT8",  # BIGINT → INT8
-            exp.DataType.Type.SMALLINT: "INT2",  # SMALLINT → INT2
+            exp.DataType.Type.INT: "INTEGER",  # INT → INTERGER
+            exp.DataType.Type.BIGINT: "INT8",  # BIGINT → BIGINT
+            exp.DataType.Type.SMALLINT: "SMALLINT",  # SMALLINT → SMALLINT
             exp.DataType.Type.DOUBLE: "FLOAT8",  # DOUBLE → FLOAT8
             exp.DataType.Type.FLOAT: "FLOAT4",  # FLOAT → FLOAT4
         }
 
         PROPERTIES_LOCATION = {
             **Postgres.Generator.PROPERTIES_LOCATION,
-            exp.TablespaceProperty: exp.Properties.Location.POST_NAME,
+            exp.OptionsProperty: exp.Properties.Location.POST_SCHEMA,
+            exp.TablespaceProperty: exp.Properties.Location.POST_SCHEMA,
             exp.ServerProperty: exp.Properties.Location.POST_SCHEMA,
             exp.TableReadWriteProperty: exp.Properties.Location.POST_SCHEMA,
             exp.WithJournalTableProperty: exp.Properties.Location.POST_SCHEMA,
@@ -547,6 +550,38 @@ class GaussDB(Postgres):  # 继承自 PostgreSQL 方言
                 return f"{this_sql}{props_sql}"
 
             return this_sql
+
+        def optionsproperty_sql(self, expression: exp.OptionsProperty) -> str:
+            return self.properties(expression, prefix=self.seg("OPTIONS", sep=""))
+        # def with_properties(self, properties: exp.Properties) -> str:
+        #     return self.properties(properties, prefix=self.seg(self.WITH_PROPERTIES_PREFIX, sep=""))
+
+        def properties_sql(self, expression: exp.Properties) -> str:
+            root_properties = []
+            with_properties = []
+
+            for p in expression.expressions:
+                p_loc = self.PROPERTIES_LOCATION[p.__class__]
+                if p_loc == exp.Properties.Location.POST_WITH:
+                    with_properties.append(p)
+                elif p_loc == exp.Properties.Location.POST_SCHEMA:
+                    root_properties.append(p)
+
+            root_props_ast = exp.Properties(expressions=root_properties)
+            root_props_ast.parent = expression.parent
+
+            with_props_ast = exp.Properties(expressions=with_properties)
+            with_props_ast.parent = expression.parent
+
+            root_props = self.root_properties(root_props_ast)
+            with_props = self.with_properties(with_props_ast)
+
+            if root_props and with_props and not self.pretty:
+                root_props = " " + root_props
+            
+            # GaussDB的WITH OPTIONS是在前面的
+            return with_props + root_props
+
 
         def datatype_sql(self, expression: exp.DataType) -> str:
             if expression.is_type(exp.DataType.Type.ARRAY):
@@ -662,3 +697,12 @@ class GaussDB(Postgres):  # 继承自 PostgreSQL 方言
                 return f"{partition_keyword} FOR ({values})"
 
             return super().partition_sql(expression)
+
+        def distributedbyproperty_sql(self, expression: exp.DistributedByProperty) -> str:
+            expressions = self.expressions(expression, flat=True)
+            expressions = f" {self.wrap(expressions)}" if expressions else ""
+            buckets = self.sql(expression, "buckets")
+            kind = self.sql(expression, "kind")
+            buckets = f" BUCKETS {buckets}" if buckets else ""
+            order = self.sql(expression, "order")
+            return f"DISTRIBUTE BY {kind}{expressions}{buckets}{order}"

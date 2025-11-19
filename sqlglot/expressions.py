@@ -6644,6 +6644,20 @@ class ServerProperty(Property):
     # this: 服务器名称
     arg_types = {"this": True}
 
+
+class OptionProperty(Property):
+    """
+    OPTIONS的KEY - VALUE对
+    """
+
+class OptionsProperty(Property):
+    """
+    OPTIONS的属性类
+    """
+    # expressions: OPTIONS的KEY - VALUE列表
+    arg_types = {"expressions": True}
+
+
 class Properties(Expression):
     """
     属性集合表达式类。
@@ -6682,6 +6696,7 @@ class Properties(Expression):
         "INCLUDE": IncludeProperty,
         "TABLESPACE": TablespaceProperty,
         "SERVER": ServerProperty,
+        "OPTIONS": OptionsProperty,
     }
 
     # 反向映射：属性类到属性名称
@@ -18302,3 +18317,4 @@ class ToGroupProperty(Property):
 class ToNodeProperty(Property):  
     """Property for specifying table distribution to specific nodes"""
     arg_types = {"this": True}
+

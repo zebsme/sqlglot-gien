@@ -21,7 +21,6 @@ def getLogger(name, file_name, use_formatter=True):
             handler.setFormatter(formatter)
         logger.addHandler(handler)
     return logger
-logger = getLogger('sql_extractor', 'sql_extractor.log')
 
 def file_reader(file_path):
     encodings = ['utf-8-sig', 'utf-8', 'gbk', 'shift-jis', 'iso-8859-1']
