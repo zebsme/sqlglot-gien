@@ -1776,6 +1776,17 @@ class Generator(metaclass=_Generator):
 
         return f"{property_name}={self.sql(expression, 'this')}"
 
+    def optionproperty_sql(self, expression: exp.Property) -> str:
+        property_cls = expression.__class__
+        if property_cls == exp.OptionProperty:
+            return f"{self.property_name(expression)} {self.sql(expression, 'value')}"
+
+        property_name = exp.Properties.PROPERTY_TO_NAME.get(property_cls)
+        if not property_name:
+            self.unsupported(f"Unsupported property {expression.key}")
+
+        return f"{property_name} {self.sql(expression, 'this')}"
+
     def likeproperty_sql(self, expression: exp.LikeProperty) -> str:
         if self.SUPPORTS_CREATE_TABLE_LIKE:
             options = " ".join(f"{e.name} {self.sql(e, 'value')}" for e in expression.expressions)
@@ -5403,3 +5414,7 @@ class Generator(metaclass=_Generator):
 
     def directorystage_sql(self, expression: exp.DirectoryStage) -> str:
         return self.func("DIRECTORY", expression.this)
+
+
+    def tablespaceproperty_sql(self, expression: exp.TablespaceProperty) -> str:
+        return f"TABLESPACE {self.sql(expression, 'this')}"
