@@ -92,6 +92,7 @@ class Dialects(str, Enum):
     DUNE = "dune"
     FABRIC = "fabric"
     HIVE = "hive"
+    LINDORM = "lindorm"
     MATERIALIZE = "materialize"
     MYSQL = "mysql"
     ORACLE = "oracle"
